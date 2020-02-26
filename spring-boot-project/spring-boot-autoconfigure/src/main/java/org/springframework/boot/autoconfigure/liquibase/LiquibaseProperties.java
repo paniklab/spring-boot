@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2018 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,6 +28,7 @@ import org.springframework.util.Assert;
  * Configuration properties to configure {@link SpringLiquibase}.
  *
  * @author Marcel Overdijk
+ * @author Eddú Meléndez
  * @since 1.1.0
  */
 @ConfigurationProperties(prefix = "spring.liquibase", ignoreUnknownFields = false)
@@ -36,12 +37,7 @@ public class LiquibaseProperties {
 	/**
 	 * Change log configuration path.
 	 */
-	private String changeLog = "classpath:/db/changelog/db.changelog-master.yaml";
-
-	/**
-	 * Whether to check that the change log location exists.
-	 */
-	private boolean checkChangeLogLocation = true;
+	private String changeLog = "classpath:db/changelog/db.changelog-master.yaml";
 
 	/**
 	 * Comma-separated list of runtime contexts to use.
@@ -119,6 +115,13 @@ public class LiquibaseProperties {
 	 */
 	private boolean testRollbackOnUpdate;
 
+	/**
+	 * Tag name to use when applying database changes. Can also be used with
+	 * "rollbackFile" to generate a rollback script for all existing changes associated
+	 * with that tag.
+	 */
+	private String tag;
+
 	public String getChangeLog() {
 		return this.changeLog;
 	}
@@ -126,14 +129,6 @@ public class LiquibaseProperties {
 	public void setChangeLog(String changeLog) {
 		Assert.notNull(changeLog, "ChangeLog must not be null");
 		this.changeLog = changeLog;
-	}
-
-	public boolean isCheckChangeLogLocation() {
-		return this.checkChangeLogLocation;
-	}
-
-	public void setCheckChangeLogLocation(boolean checkChangeLogLocation) {
-		this.checkChangeLogLocation = checkChangeLogLocation;
 	}
 
 	public String getContexts() {
@@ -254,6 +249,14 @@ public class LiquibaseProperties {
 
 	public void setTestRollbackOnUpdate(boolean testRollbackOnUpdate) {
 		this.testRollbackOnUpdate = testRollbackOnUpdate;
+	}
+
+	public String getTag() {
+		return this.tag;
+	}
+
+	public void setTag(String tag) {
+		this.tag = tag;
 	}
 
 }
