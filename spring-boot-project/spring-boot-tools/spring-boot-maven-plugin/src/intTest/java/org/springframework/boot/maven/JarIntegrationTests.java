@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,12 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.springframework.boot.maven;
 
 import java.io.File;
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.jar.JarFile;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+
+import org.springframework.boot.loader.tools.FileUtils;
+import org.springframework.boot.loader.tools.JarModeLibrary;
+import org.springframework.util.FileSystemUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -30,6 +41,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @ExtendWith(MavenBuildExtension.class)
 class JarIntegrationTests extends AbstractArchiveIntegrationTests {
+
+	@Override
+	protected String getLayersIndexLocation() {
+		return "BOOT-INF/layers.idx";
+	}
 
 	@TestTemplate
 	void whenJarIsRepackagedInPlaceOnlyRepackagedJarIsInstalled(MavenBuild mavenBuild) {
@@ -223,7 +239,7 @@ class JarIntegrationTests extends AbstractArchiveIntegrationTests {
 	}
 
 	@TestTemplate
-	void whenADependendencyHasTestScopeItIsNotIncludedInTheRepackagedJar(MavenBuild mavenBuild) {
+	void whenADependencyHasTestScopeItIsNotIncludedInTheRepackagedJar(MavenBuild mavenBuild) {
 		mavenBuild.project("jar-test-scope").execute((project) -> {
 			File main = new File(project, "target/jar-test-scope-0.0.1.BUILD-SNAPSHOT.jar");
 			assertThat(jar(main)).doesNotHaveEntryWithNameStartingWith("BOOT-INF/lib/log4j")
@@ -282,27 +298,100 @@ class JarIntegrationTests extends AbstractArchiveIntegrationTests {
 	}
 
 	@TestTemplate
-	void whenJarIsRepackagedWithTheLayeredLayoutTheJarContainsLayers(MavenBuild mavenBuild) {
+	void repackagedJarContainsTheLayersIndexByDefault(MavenBuild mavenBuild) {
 		mavenBuild.project("jar-layered").execute((project) -> {
 			File repackaged = new File(project, "jar/target/jar-layered-0.0.1.BUILD-SNAPSHOT.jar");
-			assertThat(jar(repackaged)).hasEntryWithNameStartingWith("BOOT-INF/layers/application/classes/")
-					.hasEntryWithNameStartingWith("BOOT-INF/layers/dependencies/lib/jar-release")
-					.hasEntryWithNameStartingWith("BOOT-INF/layers/snapshot-dependencies/lib/jar-snapshot")
-					.hasEntryWithNameStartingWith(
-							"BOOT-INF/layers/dependencies/lib/spring-boot-jarmode-layertools.jar");
+			assertThat(jar(repackaged)).hasEntryWithNameStartingWith("BOOT-INF/classes/")
+					.hasEntryWithNameStartingWith("BOOT-INF/lib/jar-release")
+					.hasEntryWithNameStartingWith("BOOT-INF/lib/jar-snapshot").hasEntryWithNameStartingWith(
+							"BOOT-INF/lib/" + JarModeLibrary.LAYER_TOOLS.getCoordinates().getArtifactId());
+			try (JarFile jarFile = new JarFile(repackaged)) {
+				Map<String, List<String>> layerIndex = readLayerIndex(jarFile);
+				assertThat(layerIndex.keySet()).containsExactly("dependencies", "spring-boot-loader",
+						"snapshot-dependencies", "application");
+				assertThat(layerIndex.get("application")).contains("BOOT-INF/lib/jar-release-0.0.1.RELEASE.jar",
+						"BOOT-INF/lib/jar-snapshot-0.0.1.BUILD-SNAPSHOT.jar");
+				assertThat(layerIndex.get("dependencies"))
+						.anyMatch((dependency) -> dependency.startsWith("BOOT-INF/lib/log4j-api-2"));
+			}
+			catch (IOException ex) {
+			}
 		});
 	}
 
 	@TestTemplate
-	void whenJarIsRepackagedWithTheLayeredLayoutAndLayerToolsExcluded(MavenBuild mavenBuild) {
+	void whenJarIsRepackagedWithTheLayersDisabledDoesNotContainLayersIndex(MavenBuild mavenBuild) {
+		mavenBuild.project("jar-layered-disabled").execute((project) -> {
+			File repackaged = new File(project, "jar/target/jar-layered-0.0.1.BUILD-SNAPSHOT.jar");
+			assertThat(jar(repackaged)).hasEntryWithNameStartingWith("BOOT-INF/classes/")
+					.hasEntryWithNameStartingWith("BOOT-INF/lib/jar-release")
+					.hasEntryWithNameStartingWith("BOOT-INF/lib/jar-snapshot")
+					.doesNotHaveEntryWithName("BOOT-INF/layers.idx")
+					.doesNotHaveEntryWithNameStartingWith("BOOT-INF/lib/" + JarModeLibrary.LAYER_TOOLS.getName());
+		});
+	}
+
+	@TestTemplate
+	void whenJarIsRepackagedWithTheLayersEnabledAndLayerToolsExcluded(MavenBuild mavenBuild) {
 		mavenBuild.project("jar-layered-no-layer-tools").execute((project) -> {
 			File repackaged = new File(project, "jar/target/jar-layered-0.0.1.BUILD-SNAPSHOT.jar");
-			assertThat(jar(repackaged)).hasEntryWithNameStartingWith("BOOT-INF/layers/application/classes/")
-					.hasEntryWithNameStartingWith("BOOT-INF/layers/dependencies/lib/jar-release")
-					.hasEntryWithNameStartingWith("BOOT-INF/layers/snapshot-dependencies/lib/jar-snapshot")
-					.doesNotHaveEntryWithNameStartingWith(
-							"BOOT-INF/layers/dependencies/lib/spring-boot-jarmode-layertools.jar");
+			assertThat(jar(repackaged)).hasEntryWithNameStartingWith("BOOT-INF/classes/")
+					.hasEntryWithNameStartingWith("BOOT-INF/lib/jar-release")
+					.hasEntryWithNameStartingWith("BOOT-INF/lib/jar-snapshot")
+					.hasEntryWithNameStartingWith("BOOT-INF/layers.idx")
+					.doesNotHaveEntryWithNameStartingWith("BOOT-INF/lib/" + JarModeLibrary.LAYER_TOOLS.getName());
 		});
+	}
+
+	@TestTemplate
+	void whenJarIsRepackagedWithTheCustomLayers(MavenBuild mavenBuild) {
+		mavenBuild.project("jar-layered-custom").execute((project) -> {
+			File repackaged = new File(project, "jar/target/jar-layered-0.0.1.BUILD-SNAPSHOT.jar");
+			assertThat(jar(repackaged)).hasEntryWithNameStartingWith("BOOT-INF/classes/")
+					.hasEntryWithNameStartingWith("BOOT-INF/lib/jar-release")
+					.hasEntryWithNameStartingWith("BOOT-INF/lib/jar-snapshot");
+			try (JarFile jarFile = new JarFile(repackaged)) {
+				Map<String, List<String>> layerIndex = readLayerIndex(jarFile);
+				assertThat(layerIndex.keySet()).containsExactly("my-dependencies-name", "snapshot-dependencies",
+						"configuration", "application");
+				assertThat(layerIndex.get("application"))
+						.contains("BOOT-INF/lib/jar-release-0.0.1.RELEASE.jar",
+								"BOOT-INF/lib/jar-snapshot-0.0.1.BUILD-SNAPSHOT.jar",
+								"BOOT-INF/lib/jar-classifier-0.0.1-bravo.jar")
+						.doesNotContain("BOOT-INF/lib/jar-classifier-0.0.1-alpha.jar");
+			}
+		});
+	}
+
+	@TestTemplate
+	void whenJarIsRepackagedWithOutputTimestampConfiguredThenJarIsReproducible(MavenBuild mavenBuild)
+			throws InterruptedException {
+		String firstHash = buildJarWithOutputTimestamp(mavenBuild);
+		Thread.sleep(1500);
+		String secondHash = buildJarWithOutputTimestamp(mavenBuild);
+		assertThat(firstHash).isEqualTo(secondHash);
+	}
+
+	private String buildJarWithOutputTimestamp(MavenBuild mavenBuild) {
+		AtomicReference<String> jarHash = new AtomicReference<>();
+		mavenBuild.project("jar-output-timestamp").execute((project) -> {
+			File repackaged = new File(project, "target/jar-output-timestamp-0.0.1.BUILD-SNAPSHOT.jar");
+			assertThat(repackaged).isFile();
+			assertThat(repackaged.lastModified()).isEqualTo(1584352800000L);
+			try (JarFile jar = new JarFile(repackaged)) {
+				List<String> unreproducibleEntries = jar.stream()
+						.filter((entry) -> entry.getLastModifiedTime().toMillis() != 1584352800000L)
+						.map((entry) -> entry.getName() + ": " + entry.getLastModifiedTime())
+						.collect(Collectors.toList());
+				assertThat(unreproducibleEntries).isEmpty();
+				jarHash.set(FileUtils.sha1Hash(repackaged));
+				FileSystemUtils.deleteRecursively(project);
+			}
+			catch (IOException ex) {
+				throw new RuntimeException(ex);
+			}
+		});
+		return jarHash.get();
 	}
 
 }

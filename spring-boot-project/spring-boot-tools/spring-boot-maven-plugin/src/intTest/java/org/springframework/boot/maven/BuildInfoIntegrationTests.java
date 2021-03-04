@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.springframework.boot.maven;
 
 import java.io.File;
@@ -25,6 +26,8 @@ import org.assertj.core.api.AbstractMapAssert;
 import org.assertj.core.api.AssertProvider;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+
+import org.springframework.boot.maven.MavenBuild.ProjectCallback;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -77,11 +80,11 @@ public class BuildInfoIntegrationTests {
 				.doesNotContainBuildTime()));
 	}
 
-	private Consumer<File> buildInfo(Consumer<AssertProvider<BuildInfoAssert>> buildInfo) {
+	private ProjectCallback buildInfo(Consumer<AssertProvider<BuildInfoAssert>> buildInfo) {
 		return buildInfo("target/classes/META-INF/build-info.properties", buildInfo);
 	}
 
-	private Consumer<File> buildInfo(String location, Consumer<AssertProvider<BuildInfoAssert>> buildInfo) {
+	private ProjectCallback buildInfo(String location, Consumer<AssertProvider<BuildInfoAssert>> buildInfo) {
 		return (project) -> buildInfo.accept((buildInfo(project, location)));
 	}
 

@@ -2,7 +2,6 @@ plugins {
 	id "java-library"
 	id "org.springframework.boot.conventions"
 	id "org.springframework.boot.deployed"
-	id "org.springframework.boot.internal-dependency-management"
 }
 
 description = "Spring Boot Loader Tools"
@@ -10,12 +9,15 @@ description = "Spring Boot Loader Tools"
 def generatedResources = "${buildDir}/generated-resources/main"
 
 configurations {
-	loader
-	jarmode
+	loader {
+		extendsFrom dependencyManagement
+	}
+	jarmode {
+		extendsFrom dependencyManagement
+	}
 }
 
 dependencies {
-	api(platform(project(":spring-boot-project:spring-boot-parent")))
 	api("org.apache.commons:commons-compress")
 	api("org.springframework:spring-core")
 
@@ -39,8 +41,9 @@ sourceSets {
 
 task reproducibleLoaderJar(type: Jar) {
 	dependsOn configurations.loader
-	from {
-		zipTree(configurations.loader.incoming.files.filter {it.name.startsWith "spring-boot-loader" }.singleFile)
+	from(zipTree(configurations.loader.incoming.files.filter {it.name.startsWith "spring-boot-loader" }.singleFile)) {
+		exclude "META-INF/LICENSE.txt"
+		exclude "META-INF/NOTICE.txt"
 	}
 	reproducibleFileOrder = true
 	preserveFileTimestamps = false
@@ -50,8 +53,9 @@ task reproducibleLoaderJar(type: Jar) {
 
 task reproducibleJarModeLayerToolsJar(type: Jar) {
 	dependsOn configurations.jarmode
-	from {
-		zipTree(configurations.jarmode.incoming.files.filter {it.name.startsWith "spring-boot-jarmode-layertools" }.singleFile)
+	from(zipTree(configurations.jarmode.incoming.files.filter {it.name.startsWith "spring-boot-jarmode-layertools" }.singleFile)) {
+		exclude "META-INF/LICENSE.txt"
+		exclude "META-INF/NOTICE.txt"
 	}
 	reproducibleFileOrder = true
 	preserveFileTimestamps = false
@@ -62,4 +66,10 @@ task reproducibleJarModeLayerToolsJar(type: Jar) {
 processResources {
 	dependsOn reproducibleLoaderJar
 	dependsOn reproducibleJarModeLayerToolsJar
+}
+
+compileJava {
+	if ((!project.hasProperty("buildJavaHome")) && JavaVersion.current() == JavaVersion.VERSION_1_8) {
+		options.compilerArgs += ['-Xlint:-sunapi', '-XDenableSunApiLintControl']	
+	}	
 }

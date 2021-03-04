@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,8 +55,8 @@ class ClassPathIndexFileTests {
 	}
 
 	@Test
-	void loadIfPossibleWhenRootIsFolderThrowsException() throws Exception {
-		File root = new File(this.temp, "folder");
+	void loadIfPossibleWhenRootIsDirectoryThrowsException() throws Exception {
+		File root = new File(this.temp, "directory");
 		root.mkdirs();
 		assertThat(ClassPathIndexFile.loadIfPossible(root.toURI().toURL(), "test.idx")).isNull();
 	}
@@ -71,20 +71,6 @@ class ClassPathIndexFileTests {
 	void sizeReturnsNumberOfLines() throws Exception {
 		ClassPathIndexFile indexFile = copyAndLoadTestIndexFile();
 		assertThat(indexFile.size()).isEqualTo(5);
-	}
-
-	@Test
-	void containsFolderWhenFolderIsPresentReturnsTrue() throws Exception {
-		ClassPathIndexFile indexFile = copyAndLoadTestIndexFile();
-		assertThat(indexFile.containsFolder("BOOT-INF/layers/one/lib")).isTrue();
-		assertThat(indexFile.containsFolder("BOOT-INF/layers/one/lib/")).isTrue();
-		assertThat(indexFile.containsFolder("BOOT-INF/layers/two/lib")).isTrue();
-	}
-
-	@Test
-	void containsFolderWhenFolderIsMissingReturnsFalse() throws Exception {
-		ClassPathIndexFile indexFile = copyAndLoadTestIndexFile();
-		assertThat(indexFile.containsFolder("BOOT-INF/layers/nope/lib/")).isFalse();
 	}
 
 	@Test

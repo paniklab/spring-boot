@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ public class MetricsProperties {
 	private boolean useGlobalRegistry = true;
 
 	/**
-	 * Whether meter IDs starting-with the specified name should be enabled. The longest
+	 * Whether meter IDs starting with the specified name should be enabled. The longest
 	 * match wins, the key `all` can also be used to configure all meters.
 	 */
 	private final Map<String, Boolean> enable = new LinkedHashMap<>();
@@ -232,22 +232,22 @@ public class MetricsProperties {
 		private final Map<String, double[]> percentiles = new LinkedHashMap<>();
 
 		/**
-		 * Specific SLA boundaries for meter IDs starting-with the specified name. The
-		 * longest match wins. Counters will be published for each specified boundary.
-		 * Values can be specified as a long or as a Duration value (for timer meters,
-		 * defaulting to ms if no unit specified).
+		 * Specific service-level objective boundaries for meter IDs starting with the
+		 * specified name. The longest match wins. Counters will be published for each
+		 * specified boundary. Values can be specified as a long or as a Duration value
+		 * (for timer meters, defaulting to ms if no unit specified).
 		 */
-		private final Map<String, ServiceLevelAgreementBoundary[]> sla = new LinkedHashMap<>();
+		private final Map<String, ServiceLevelObjectiveBoundary[]> slo = new LinkedHashMap<>();
 
 		/**
-		 * Minimum value that meter IDs starting-with the specified name are expected to
+		 * Minimum value that meter IDs starting with the specified name are expected to
 		 * observe. The longest match wins. Values can be specified as a long or as a
 		 * Duration value (for timer meters, defaulting to ms if no unit specified).
 		 */
 		private final Map<String, String> minimumExpectedValue = new LinkedHashMap<>();
 
 		/**
-		 * Maximum value that meter IDs starting-with the specified name are expected to
+		 * Maximum value that meter IDs starting with the specified name are expected to
 		 * observe. The longest match wins. Values can be specified as a long or as a
 		 * Duration value (for timer meters, defaulting to ms if no unit specified).
 		 */
@@ -261,8 +261,8 @@ public class MetricsProperties {
 			return this.percentiles;
 		}
 
-		public Map<String, ServiceLevelAgreementBoundary[]> getSla() {
-			return this.sla;
+		public Map<String, ServiceLevelObjectiveBoundary[]> getSlo() {
+			return this.slo;
 		}
 
 		public Map<String, String> getMinimumExpectedValue() {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -176,12 +176,12 @@ public abstract class AbstractRunMojo extends AbstractDependencyFilterMojo {
 	private String mainClass;
 
 	/**
-	 * Additional folders besides the classes directory that should be added to the
+	 * Additional directories besides the classes directory that should be added to the
 	 * classpath.
 	 * @since 1.0.0
 	 */
-	@Parameter(property = "spring-boot.run.folders")
-	private String[] folders;
+	@Parameter(property = "spring-boot.run.directories")
+	private String[] directories;
 
 	/**
 	 * Directory containing the classes and resource files that should be packaged into
@@ -238,10 +238,6 @@ public abstract class AbstractRunMojo extends AbstractDependencyFilterMojo {
 	private boolean hasJvmArgs() {
 		return (this.jvmArguments != null && !this.jvmArguments.isEmpty())
 				|| (this.systemPropertyVariables != null && !this.systemPropertyVariables.isEmpty());
-	}
-
-	private boolean hasEnvVariables() {
-		return (this.environmentVariables != null && !this.environmentVariables.isEmpty());
 	}
 
 	private boolean hasWorkingDirectorySet() {
@@ -444,7 +440,7 @@ public abstract class AbstractRunMojo extends AbstractDependencyFilterMojo {
 	protected URL[] getClassPathUrls() throws MojoExecutionException {
 		try {
 			List<URL> urls = new ArrayList<>();
-			addUserDefinedFolders(urls);
+			addUserDefinedDirectories(urls);
 			addResources(urls);
 			addProjectClasses(urls);
 			addDependencies(urls);
@@ -455,10 +451,10 @@ public abstract class AbstractRunMojo extends AbstractDependencyFilterMojo {
 		}
 	}
 
-	private void addUserDefinedFolders(List<URL> urls) throws MalformedURLException {
-		if (this.folders != null) {
-			for (String folder : this.folders) {
-				urls.add(new File(folder).toURI().toURL());
+	private void addUserDefinedDirectories(List<URL> urls) throws MalformedURLException {
+		if (this.directories != null) {
+			for (String directory : this.directories) {
+				urls.add(new File(directory).toURI().toURL());
 			}
 		}
 	}

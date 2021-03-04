@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,22 +20,22 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.Reader;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
 
 import javax.inject.Inject;
 
 import org.gradle.api.DefaultTask;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Task;
+import org.gradle.api.artifacts.repositories.MavenArtifactRepository;
 import org.gradle.api.internal.tasks.userinput.UserInputHandler;
+import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.TaskExecutionException;
 import org.gradle.api.tasks.options.Option;
@@ -53,6 +53,8 @@ import org.springframework.util.StringUtils;
  */
 public class UpgradeBom extends DefaultTask {
 
+	private Set<String> repositoryUrls;
+
 	private final BomExtension bom;
 
 	private String milestone;
@@ -60,11 +62,23 @@ public class UpgradeBom extends DefaultTask {
 	@Inject
 	public UpgradeBom(BomExtension bom) {
 		this.bom = bom;
+		this.repositoryUrls = new LinkedHashSet<>();
+		getProject().getRepositories().withType(MavenArtifactRepository.class, (repository) -> {
+			String repositoryUrl = repository.getUrl().toString();
+			if (!repositoryUrl.endsWith("snapshot")) {
+				this.repositoryUrls.add(repository.getUrl().toString());
+			}
+		});
 	}
 
 	@Option(option = "milestone", description = "Milestone to which dependency upgrade issues should be assigned")
 	public void setMilestone(String milestone) {
 		this.milestone = milestone;
+	}
+
+	@Input
+	public String getMilestone() {
+		return this.milestone;
 	}
 
 	@TaskAction
@@ -80,18 +94,19 @@ public class UpgradeBom extends DefaultTask {
 					"Unknown label(s): " + StringUtils.collectionToCommaDelimitedString(unknownLabels));
 		}
 		Milestone milestone = determineMilestone(repository);
-		List<Upgrade> upgrades = new InteractiveUpgradeResolver(
-				new MavenMetadataVersionResolver(Arrays.asList("https://repo1.maven.org/maven2/")),
+		List<Upgrade> upgrades = new InteractiveUpgradeResolver(new MavenMetadataVersionResolver(this.repositoryUrls),
 				this.bom.getUpgrade().getPolicy(), getServices().get(UserInputHandler.class))
 						.resolveUpgrades(this.bom.getLibraries());
+		Path buildFile = getProject().getBuildFile().toPath();
+		Path gradleProperties = new File(getProject().getRootProject().getProjectDir(), "gradle.properties").toPath();
+		UpgradeApplicator upgradeApplicator = new UpgradeApplicator(buildFile, gradleProperties);
 		for (Upgrade upgrade : upgrades) {
 			String title = "Upgrade to " + upgrade.getLibrary().getName() + " " + upgrade.getVersion();
 			System.out.println(title);
 			try {
-				Path buildFile = getProject().getBuildFile().toPath();
-				applyChanges(upgrade, buildFile);
+				Path modified = upgradeApplicator.apply(upgrade);
 				int issueNumber = repository.openIssue(title, issueLabels, milestone);
-				if (new ProcessBuilder().command("git", "add", buildFile.toFile().getAbsolutePath()).start()
+				if (new ProcessBuilder().command("git", "add", modified.toFile().getAbsolutePath()).start()
 						.waitFor() != 0) {
 					throw new IllegalStateException("git add failed");
 				}
@@ -120,14 +135,6 @@ public class UpgradeBom extends DefaultTask {
 		catch (IOException ex) {
 			throw new InvalidUserDataException("Failed to load .bomr.properties from user home", ex);
 		}
-	}
-
-	private void applyChanges(Upgrade upgrade, Path buildFile) throws IOException {
-		String contents = new String(Files.readAllBytes(buildFile), StandardCharsets.UTF_8);
-		String modified = contents.replace(
-				"library(\"" + upgrade.getLibrary().getName() + "\", \"" + upgrade.getLibrary().getVersion() + "\")",
-				"library(\"" + upgrade.getLibrary().getName() + "\", \"" + upgrade.getVersion() + "\")");
-		Files.write(buildFile, modified.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE);
 	}
 
 	private Milestone determineMilestone(GitHubRepository repository) {
