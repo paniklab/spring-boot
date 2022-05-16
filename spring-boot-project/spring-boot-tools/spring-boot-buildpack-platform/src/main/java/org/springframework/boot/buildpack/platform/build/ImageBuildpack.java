@@ -54,14 +54,15 @@ final class ImageBuildpack implements Buildpack {
 	private final ExportedLayers exportedLayers;
 
 	private ImageBuildpack(BuildpackResolverContext context, ImageReference imageReference) {
+		ImageReference reference = imageReference.inTaggedOrDigestForm();
 		try {
-			Image image = context.fetchImage(imageReference, ImageType.BUILDPACK);
+			Image image = context.fetchImage(reference, ImageType.BUILDPACK);
 			BuildpackMetadata buildpackMetadata = BuildpackMetadata.fromImage(image);
 			this.coordinates = BuildpackCoordinates.fromBuildpackMetadata(buildpackMetadata);
-			this.exportedLayers = new ExportedLayers(context, imageReference);
+			this.exportedLayers = new ExportedLayers(context, reference);
 		}
 		catch (IOException | DockerEngineException ex) {
-			throw new IllegalArgumentException("Error pulling buildpack image '" + imageReference + "'", ex);
+			throw new IllegalArgumentException("Error pulling buildpack image '" + reference + "'", ex);
 		}
 	}
 
@@ -124,13 +125,12 @@ final class ImageBuildpack implements Buildpack {
 		private void copyLayerTar(Path path, OutputStream out) throws IOException {
 			try (TarArchiveInputStream tarIn = new TarArchiveInputStream(Files.newInputStream(path));
 					TarArchiveOutputStream tarOut = new TarArchiveOutputStream(out)) {
+				tarOut.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX);
 				TarArchiveEntry entry = tarIn.getNextTarEntry();
 				while (entry != null) {
-					if (entry.isFile()) {
-						tarOut.putArchiveEntry(entry);
-						StreamUtils.copy(tarIn, tarOut);
-						tarOut.closeArchiveEntry();
-					}
+					tarOut.putArchiveEntry(entry);
+					StreamUtils.copy(tarIn, tarOut);
+					tarOut.closeArchiveEntry();
 					entry = tarIn.getNextTarEntry();
 				}
 				tarOut.finish();

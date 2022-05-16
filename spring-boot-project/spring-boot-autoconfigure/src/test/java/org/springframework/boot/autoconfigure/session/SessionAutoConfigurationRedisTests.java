@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -158,7 +158,7 @@ class SessionAutoConfigurationRedisTests extends AbstractSessionAutoConfiguratio
 			assertThat(context.getBean(ConfigureRedisAction.class)).isInstanceOf(expectedConfigureRedisActionType);
 			RedisConnection connection = context.getBean(RedisConnectionFactory.class).getConnection();
 			if (expectedConfig.length > 0) {
-				assertThat(connection.getConfig("*")).contains(expectedConfig);
+				assertThat(connection.serverCommands().getConfig("*")).contains(expectedConfig);
 			}
 		};
 	}
@@ -167,7 +167,7 @@ class SessionAutoConfigurationRedisTests extends AbstractSessionAutoConfiguratio
 
 		@Override
 		public void configure(RedisConnection connection) {
-			connection.setConfig("set-max-intset-entries", "1024");
+			connection.serverCommands().setConfig("set-max-intset-entries", "1024");
 		}
 
 	}

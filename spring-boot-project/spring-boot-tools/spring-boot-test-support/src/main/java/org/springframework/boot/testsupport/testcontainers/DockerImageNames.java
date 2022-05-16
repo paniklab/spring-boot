@@ -34,7 +34,7 @@ public final class DockerImageNames {
 
 	private static final String NEO4J_VERSION = "4.0";
 
-	private static final String POSTGRESQL_VERSION = "9.6.21";
+	private static final String POSTGRESQL_VERSION = "14.0";
 
 	private static final String REDIS_VERSION = "4.0.14";
 
@@ -52,8 +52,8 @@ public final class DockerImageNames {
 	}
 
 	/**
-	 * Return a {@link DockerImageName} suitable for running Cassandra.
-	 * @return a docker image name for running cassandra
+	 * Return a {@link DockerImageName} suitable for running Couchbase.
+	 * @return a docker image name for running couchbase
 	 */
 	public static DockerImageName couchbase() {
 		return DockerImageName.parse("couchbase/server").withTag(COUCHBASE_VERSION);

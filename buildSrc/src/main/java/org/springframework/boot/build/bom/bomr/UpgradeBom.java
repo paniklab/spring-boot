@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.Reader;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -43,6 +44,7 @@ import org.gradle.api.tasks.options.Option;
 import org.springframework.boot.build.bom.BomExtension;
 import org.springframework.boot.build.bom.bomr.github.GitHub;
 import org.springframework.boot.build.bom.bomr.github.GitHubRepository;
+import org.springframework.boot.build.bom.bomr.github.Issue;
 import org.springframework.boot.build.bom.bomr.github.Milestone;
 import org.springframework.util.StringUtils;
 
@@ -66,7 +68,7 @@ public class UpgradeBom extends DefaultTask {
 		getProject().getRepositories().withType(MavenArtifactRepository.class, (repository) -> {
 			String repositoryUrl = repository.getUrl().toString();
 			if (!repositoryUrl.endsWith("snapshot")) {
-				this.repositoryUrls.add(repository.getUrl().toString());
+				this.repositoryUrls.add(repositoryUrl);
 			}
 		});
 	}
@@ -82,6 +84,7 @@ public class UpgradeBom extends DefaultTask {
 	}
 
 	@TaskAction
+	@SuppressWarnings("deprecation")
 	void upgradeDependencies() {
 		GitHubRepository repository = createGitHub().getRepository(this.bom.getUpgrade().getGitHub().getOrganization(),
 				this.bom.getUpgrade().getGitHub().getRepository());
@@ -94,6 +97,7 @@ public class UpgradeBom extends DefaultTask {
 					"Unknown label(s): " + StringUtils.collectionToCommaDelimitedString(unknownLabels));
 		}
 		Milestone milestone = determineMilestone(repository);
+		List<Issue> existingUpgradeIssues = repository.findIssues(issueLabels, milestone);
 		List<Upgrade> upgrades = new InteractiveUpgradeResolver(new MavenMetadataVersionResolver(this.repositoryUrls),
 				this.bom.getUpgrade().getPolicy(), getServices().get(UserInputHandler.class))
 						.resolveUpgrades(this.bom.getLibraries());
@@ -102,10 +106,22 @@ public class UpgradeBom extends DefaultTask {
 		UpgradeApplicator upgradeApplicator = new UpgradeApplicator(buildFile, gradleProperties);
 		for (Upgrade upgrade : upgrades) {
 			String title = "Upgrade to " + upgrade.getLibrary().getName() + " " + upgrade.getVersion();
-			System.out.println(title);
+			Issue existingUpgradeIssue = findExistingUpgradeIssue(existingUpgradeIssues, upgrade);
+			if (existingUpgradeIssue != null) {
+				System.out.println(title + " (supersedes #" + existingUpgradeIssue.getNumber() + " "
+						+ existingUpgradeIssue.getTitle() + ")");
+			}
+			else {
+				System.out.println(title);
+			}
 			try {
 				Path modified = upgradeApplicator.apply(upgrade);
-				int issueNumber = repository.openIssue(title, issueLabels, milestone);
+				int issueNumber = repository.openIssue(title,
+						(existingUpgradeIssue != null) ? "Supersedes #" + existingUpgradeIssue.getNumber() : "",
+						issueLabels, milestone);
+				if (existingUpgradeIssue != null) {
+					existingUpgradeIssue.label(Arrays.asList("type: task", "status: superseded"));
+				}
 				if (new ProcessBuilder().command("git", "add", modified.toFile().getAbsolutePath()).start()
 						.waitFor() != 0) {
 					throw new IllegalStateException("git add failed");
@@ -122,6 +138,17 @@ public class UpgradeBom extends DefaultTask {
 				Thread.currentThread().interrupt();
 			}
 		}
+	}
+
+	private Issue findExistingUpgradeIssue(List<Issue> existingUpgradeIssues, Upgrade upgrade) {
+		String toMatch = "Upgrade to " + upgrade.getLibrary().getName();
+		for (Issue existingUpgradeIssue : existingUpgradeIssues) {
+			if (existingUpgradeIssue.getTitle().substring(0, existingUpgradeIssue.getTitle().lastIndexOf(' '))
+					.equals(toMatch)) {
+				return existingUpgradeIssue;
+			}
+		}
+		return null;
 	}
 
 	private GitHub createGitHub() {

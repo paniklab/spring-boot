@@ -80,17 +80,6 @@ class MongoDataAutoConfigurationTests {
 	}
 
 	@Test
-	@Deprecated
-	void whenGridFsDatabaseIsConfiguredWithDeprecatedPropertyThenGridFsTemplateIsAutoConfiguredAndUsesIt() {
-		this.contextRunner.withPropertyValues("spring.data.mongodb.gridFsDatabase:grid").run((context) -> {
-			assertThat(context).hasSingleBean(GridFsTemplate.class);
-			GridFsTemplate template = context.getBean(GridFsTemplate.class);
-			MongoDatabaseFactory factory = (MongoDatabaseFactory) ReflectionTestUtils.getField(template, "dbFactory");
-			assertThat(factory.getMongoDatabase().getName()).isEqualTo("grid");
-		});
-	}
-
-	@Test
 	void whenGridFsBucketIsConfiguredThenGridFsTemplateIsAutoConfiguredAndUsesIt() {
 		this.contextRunner.withPropertyValues("spring.data.mongodb.gridfs.bucket:test-bucket").run((context) -> {
 			assertThat(context).hasSingleBean(GridFsTemplate.class);
@@ -147,10 +136,18 @@ class MongoDataAutoConfigurationTests {
 	}
 
 	@Test
-	void customAutoIndexCreation() {
-		this.contextRunner.withPropertyValues("spring.data.mongodb.autoIndexCreation:false").run((context) -> {
+	void defaultAutoIndexCreation() {
+		this.contextRunner.run((context) -> {
 			MongoMappingContext mappingContext = context.getBean(MongoMappingContext.class);
 			assertThat(mappingContext.isAutoIndexCreation()).isFalse();
+		});
+	}
+
+	@Test
+	void customAutoIndexCreation() {
+		this.contextRunner.withPropertyValues("spring.data.mongodb.autoIndexCreation:true").run((context) -> {
+			MongoMappingContext mappingContext = context.getBean(MongoMappingContext.class);
+			assertThat(mappingContext.isAutoIndexCreation()).isTrue();
 		});
 	}
 

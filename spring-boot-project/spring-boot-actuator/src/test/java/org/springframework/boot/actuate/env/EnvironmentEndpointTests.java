@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -165,6 +165,28 @@ class EnvironmentEndpointTests {
 	}
 
 	@Test
+	void keysMatchingCustomSanitizingFunctionHaveTheirValuesSanitized() {
+		ConfigurableEnvironment environment = new StandardEnvironment();
+		TestPropertyValues.of("other.service=abcde").applyTo(environment);
+		TestPropertyValues.of("system.service=123456").applyToSystemProperties(() -> {
+			EnvironmentDescriptor descriptor = new EnvironmentEndpoint(environment,
+					Collections.singletonList((data) -> {
+						String name = data.getPropertySource().getName();
+						if (name.equals(StandardEnvironment.SYSTEM_PROPERTIES_PROPERTY_SOURCE_NAME)) {
+							return data.withValue("******");
+						}
+						return data;
+					})).environment(null);
+			assertThat(propertySources(descriptor).get("test").getProperties().get("other.service").getValue())
+					.isEqualTo("abcde");
+			Map<String, PropertyValueDescriptor> systemProperties = propertySources(descriptor).get("systemProperties")
+					.getProperties();
+			assertThat(systemProperties.get("system.service").getValue()).isEqualTo("******");
+			return null;
+		});
+	}
+
+	@Test
 	void propertyWithPlaceholderResolved() {
 		ConfigurableEnvironment environment = emptyEnvironment();
 		TestPropertyValues.of("my.foo: ${bar.blah}", "bar.blah: hello").applyTo(environment);
@@ -200,6 +222,17 @@ class EnvironmentEndpointTests {
 	}
 
 	@Test
+	void propertyWithSensitivePlaceholderWithCustomFunctionResolved() {
+		ConfigurableEnvironment environment = emptyEnvironment();
+		TestPropertyValues.of("my.foo: http://${bar.password}://hello", "bar.password: hello").applyTo(environment);
+		EnvironmentDescriptor descriptor = new EnvironmentEndpoint(environment,
+				Collections.singletonList((data) -> data.withValue(data.getPropertySource().getName() + "******")))
+						.environment(null);
+		assertThat(propertySources(descriptor).get("test").getProperties().get("my.foo").getValue())
+				.isEqualTo("test******");
+	}
+
+	@Test
 	void propertyWithComplexTypeShouldNotFail() {
 		ConfigurableEnvironment environment = emptyEnvironment();
 		environment.getPropertySources()
@@ -227,7 +260,7 @@ class EnvironmentEndpointTests {
 	}
 
 	@Test
-	void propertyWithCharSequenceTypeIsConvertedToString() throws Exception {
+	void propertyWithCharSequenceTypeIsConvertedToString() {
 		ConfigurableEnvironment environment = emptyEnvironment();
 		environment.getPropertySources().addFirst(singleKeyPropertySource("test", "foo", new CharSequenceProperty()));
 		EnvironmentDescriptor descriptor = new EnvironmentEndpoint(environment).environment(null);

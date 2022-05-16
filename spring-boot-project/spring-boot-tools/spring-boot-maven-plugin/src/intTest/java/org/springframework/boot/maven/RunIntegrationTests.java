@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,20 +45,6 @@ class RunIntegrationTests {
 	}
 
 	@TestTemplate
-	void whenForkingIsDisabledAndDevToolsIsPresentDevToolsIsDisabled(MavenBuild mavenBuild) {
-		mavenBuild.project("run-devtools").goals("spring-boot:run").execute((project) -> assertThat(buildLog(project))
-				.contains("I haz been run").contains("Fork mode disabled, devtools will be disabled"));
-	}
-
-	@TestTemplate
-	void whenForkingIsDisabledJvmArgumentsAndWorkingDirectoryAreIgnored(MavenBuild mavenBuild) {
-		mavenBuild.project("run-disable-fork").goals("spring-boot:run")
-				.execute((project) -> assertThat(buildLog(project)).contains("I haz been run").contains(
-						"Fork mode disabled, ignoring JVM argument(s) [-Dproperty1=value1 -Dproperty2 -Dfoo=bar]")
-						.contains("Fork mode disabled, ignoring working directory configuration"));
-	}
-
-	@TestTemplate
 	void whenEnvironmentVariablesAreConfiguredTheyAreAvailableToTheApplication(MavenBuild mavenBuild) {
 		mavenBuild.project("run-envargs").goals("spring-boot:run")
 				.execute((project) -> assertThat(buildLog(project)).contains("I haz been run"));
@@ -99,12 +85,6 @@ class RunIntegrationTests {
 	@TestTemplate
 	void whenProfilesAreConfiguredTheyArePassedToTheApplication(MavenBuild mavenBuild) {
 		mavenBuild.project("run-profiles").goals("spring-boot:run", "-X").execute(
-				(project) -> assertThat(buildLog(project)).contains("I haz been run with profile(s) 'foo,bar'"));
-	}
-
-	@TestTemplate
-	void whenProfilesAreConfiguredAndForkingIsDisabledTheyArePassedToTheApplication(MavenBuild mavenBuild) {
-		mavenBuild.project("run-profiles-fork-disabled").goals("spring-boot:run").execute(
 				(project) -> assertThat(buildLog(project)).contains("I haz been run with profile(s) 'foo,bar'"));
 	}
 

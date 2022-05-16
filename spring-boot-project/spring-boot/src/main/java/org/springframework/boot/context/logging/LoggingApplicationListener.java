@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -131,7 +131,7 @@ public class LoggingApplicationListener implements GenericApplicationListener {
 	public static final String LOG_FILE_BEAN_NAME = "springBootLogFile";
 
 	/**
-	 * The name of the{@link LoggerGroups} bean.
+	 * The name of the {@link LoggerGroups} bean.
 	 * @since 2.2.0
 	 */
 	public static final String LOGGER_GROUPS_BEAN_NAME = "springBootLoggerGroups";
@@ -233,10 +233,11 @@ public class LoggingApplicationListener implements GenericApplicationListener {
 	}
 
 	private void onApplicationEnvironmentPreparedEvent(ApplicationEnvironmentPreparedEvent event) {
+		SpringApplication springApplication = event.getSpringApplication();
 		if (this.loggingSystem == null) {
-			this.loggingSystem = LoggingSystem.get(event.getSpringApplication().getClassLoader());
+			this.loggingSystem = LoggingSystem.get(springApplication.getClassLoader());
 		}
-		initialize(event.getEnvironment(), event.getSpringApplication().getClassLoader());
+		initialize(event.getEnvironment(), springApplication.getClassLoader());
 	}
 
 	private void onApplicationPreparedEvent(ApplicationPreparedEvent event) {
@@ -305,7 +306,10 @@ public class LoggingApplicationListener implements GenericApplicationListener {
 	}
 
 	private void initializeSystem(ConfigurableEnvironment environment, LoggingSystem system, LogFile logFile) {
-		String logConfig = StringUtils.trimWhitespace(environment.getProperty(CONFIG_PROPERTY));
+		String logConfig = environment.getProperty(CONFIG_PROPERTY);
+		if (StringUtils.hasLength(logConfig)) {
+			logConfig = logConfig.strip();
+		}
 		try {
 			LoggingInitializationContext initializationContext = new LoggingInitializationContext(environment);
 			if (ignoreLogConfig(logConfig)) {
@@ -398,17 +402,16 @@ public class LoggingApplicationListener implements GenericApplicationListener {
 	}
 
 	private void registerShutdownHookIfNecessary(Environment environment, LoggingSystem loggingSystem) {
-		boolean registerShutdownHook = environment.getProperty(REGISTER_SHUTDOWN_HOOK_PROPERTY, Boolean.class, true);
-		if (registerShutdownHook) {
+		if (environment.getProperty(REGISTER_SHUTDOWN_HOOK_PROPERTY, Boolean.class, true)) {
 			Runnable shutdownHandler = loggingSystem.getShutdownHandler();
 			if (shutdownHandler != null && shutdownHookRegistered.compareAndSet(false, true)) {
-				registerShutdownHook(new Thread(shutdownHandler));
+				registerShutdownHook(shutdownHandler);
 			}
 		}
 	}
 
-	void registerShutdownHook(Thread shutdownHook) {
-		Runtime.getRuntime().addShutdownHook(shutdownHook);
+	void registerShutdownHook(Runnable shutdownHandler) {
+		SpringApplication.getShutdownHandlers().add(shutdownHandler);
 	}
 
 	public void setOrder(int order) {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,16 +20,15 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 
-import javax.servlet.DispatcherType;
-import javax.servlet.Filter;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tag;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.distribution.HistogramSnapshot;
+import jakarta.servlet.DispatcherType;
+import jakarta.servlet.Filter;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -118,6 +117,15 @@ class WebMvcMetricsAutoConfigurationTests {
 			assertThat(registration).hasFieldOrPropertyWithValue("dispatcherTypes",
 					EnumSet.of(DispatcherType.REQUEST, DispatcherType.ASYNC));
 			assertThat(registration.getOrder()).isEqualTo(Ordered.HIGHEST_PRECEDENCE + 1);
+		});
+	}
+
+	@Test
+	void filterRegistrationBacksOff() {
+		this.contextRunner.withUserConfiguration(TestWebMvcMetricsFilterConfiguration.class).run((context) -> {
+			assertThat(context).hasSingleBean(FilterRegistrationBean.class);
+			assertThat(context.getBean(FilterRegistrationBean.class))
+					.isSameAs(context.getBean("testWebMvcMetricsFilter"));
 		});
 	}
 
@@ -244,6 +252,17 @@ class WebMvcMetricsAutoConfigurationTests {
 		@Override
 		public Iterable<Tag> getLongRequestTags(HttpServletRequest request, Object handler) {
 			return Collections.emptyList();
+		}
+
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	static class TestWebMvcMetricsFilterConfiguration {
+
+		@Bean
+		@SuppressWarnings("unchecked")
+		FilterRegistrationBean<WebMvcMetricsFilter> testWebMvcMetricsFilter() {
+			return mock(FilterRegistrationBean.class);
 		}
 
 	}

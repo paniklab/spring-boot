@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,8 @@ import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.boot.actuate.health.Status;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.data.elasticsearch.client.reactive.ReactiveElasticsearchClient;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -62,12 +64,16 @@ public class ElasticsearchReactiveHealthIndicator extends AbstractReactiveHealth
 	}
 
 	private Mono<Health> doHealthCheck(Health.Builder builder, ClientResponse response) {
-		if (response.statusCode().is2xxSuccessful()) {
+		HttpStatusCode httpStatusCode = response.statusCode();
+		HttpStatus httpStatus = HttpStatus.resolve(httpStatusCode.value());
+		if (httpStatusCode.is2xxSuccessful()) {
 			return response.bodyToMono(STRING_OBJECT_MAP).map((body) -> getHealth(builder, body));
 		}
 		builder.down();
-		builder.withDetail("statusCode", response.rawStatusCode());
-		builder.withDetail("reasonPhrase", response.statusCode().getReasonPhrase());
+		builder.withDetail("statusCode", httpStatusCode.value());
+		if (httpStatus != null) {
+			builder.withDetail("reasonPhrase", httpStatus.getReasonPhrase());
+		}
 		return response.releaseBody().thenReturn(builder.build());
 	}
 

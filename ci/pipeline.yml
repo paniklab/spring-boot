@@ -2,7 +2,7 @@ anchors:
   git-repo-resource-source: &git-repo-resource-source
     uri: ((github-repo))
     username: ((github-username))
-    password: ((github-password))
+    password: ((github-ci-release-token))
     branch: ((branch))
   registry-image-resource-source: &registry-image-resource-source
     username: ((docker-hub-username))
@@ -37,6 +37,15 @@ anchors:
     privileged: true
     timeout: ((task-timeout))
     file: git-repo/ci/tasks/build-project.yml
+    params:
+      BRANCH: ((branch))
+      DOCKER_HUB_MIRROR: ((docker-hub-mirror))
+      <<: *gradle-enterprise-task-params
+      <<: *docker-hub-task-params
+  run-system-tests-task-params: &run-system-tests-task-params
+    privileged: true
+    timeout: ((task-timeout))
+    file: git-repo/ci/tasks/run-system-tests.yml
     params:
       BRANCH: ((branch))
       <<: *gradle-enterprise-task-params
@@ -75,14 +84,26 @@ anchors:
   homebrew-tap-repo-resource-source: &homebrew-tap-repo-resource-source
     uri: ((homebrew-tap-repo))
     username: ((github-username))
-    password: ((github-password))
-    branch: master
+    password: ((github-ci-release-token))
+    branch: main
+  gradle-publish-params: &gradle-publish-params
+    GRADLE_PUBLISH_KEY: ((gradle-publish-key))
+    GRADLE_PUBLISH_SECRET: ((gradle-publish-secret))
+  docker-hub-mirror-vars: &docker-hub-mirror-vars
+    docker-hub-mirror: ((docker-hub-mirror))
+    docker-hub-mirror-username: ((docker-hub-mirror-username))
+    docker-hub-mirror-password: ((docker-hub-mirror-password))
 resource_types:
+- name: registry-image
+  type: registry-image
+  source:
+    repository: concourse/registry-image-resource
+    tag: 1.5.0
 - name: artifactory-resource
   type: registry-image
   source:
     repository: springio/artifactory-resource
-    tag: 0.0.13
+    tag: 0.0.17
 - name: pull-request
   type: registry-image
   source:
@@ -98,6 +119,11 @@ resource_types:
   source:
     repository: cfcommunity/slack-notification-resource
     tag: latest
+- name: github-release
+  type: registry-image
+  source:
+    repository: concourse/github-release-resource
+    tag: 1.5.5
 resources:
 - name: git-repo
   type: git
@@ -150,18 +176,18 @@ resources:
   source:
     <<: *registry-image-resource-source
     repository: ((docker-hub-organization))/spring-boot-ci
-- name: ci-image-jdk11
+- name: ci-image-jdk18
   type: registry-image
   icon: docker
   source:
     <<: *registry-image-resource-source
-    repository: ((docker-hub-organization))/spring-boot-ci-jdk11
-- name: ci-image-jdk15
+    repository: ((docker-hub-organization))/spring-boot-ci-jdk18
+- name: paketo-builder-base-image
   type: registry-image
   icon: docker
   source:
-    <<: *registry-image-resource-source
-    repository: ((docker-hub-organization))/spring-boot-ci-jdk15
+    repository: paketobuildpacks/builder
+    tag: base
 - name: artifactory-repo
   type: artifactory-resource
   icon: package-variant
@@ -178,22 +204,14 @@ resources:
     access_token: ((github-ci-status-token))
     branch: ((branch))
     context: build
-- name: repo-status-jdk11-build
+- name: repo-status-jdk18-build
   type: github-status-resource
   icon: eye-check-outline
   source:
     repository: ((github-repo-name))
     access_token: ((github-ci-status-token))
     branch: ((branch))
-    context: jdk11-build
-- name: repo-status-jdk15-build
-  type: github-status-resource
-  icon: eye-check-outline
-  source:
-    repository: ((github-repo-name))
-    access_token: ((github-ci-status-token))
-    branch: ((branch))
-    context: jdk15-build
+    context: jdk18-build
 - name: slack-alert
   type: slack-notification
   icon: slack
@@ -229,30 +247,22 @@ jobs:
         image: ci-image
       vars:
         ci-image-name: ci-image
-    - task: build-ci-image-jdk11
+        <<: *docker-hub-mirror-vars
+    - task: build-ci-image-jdk18
       privileged: true
       file: git-repo/ci/tasks/build-ci-image.yml
       output_mapping:
-        image: ci-image-jdk11
+        image: ci-image-jdk18
       vars:
-        ci-image-name: ci-image-jdk11
-    - task: build-ci-image-jdk15
-      privileged: true
-      file: git-repo/ci/tasks/build-ci-image.yml
-      output_mapping:
-        image: ci-image-jdk15
-      vars:
-        ci-image-name: ci-image-jdk15
+        ci-image-name: ci-image-jdk18
+        <<: *docker-hub-mirror-vars
   - in_parallel:
     - put: ci-image
       params:
         image: ci-image/image.tar
-    - put: ci-image-jdk11
+    - put: ci-image-jdk18
       params:
-        image: ci-image-jdk11/image.tar
-    - put: ci-image-jdk15
-      params:
-        image: ci-image-jdk15/image.tar
+        image: ci-image-jdk18/image.tar
 - name: detect-jdk-updates
   plan:
   - get: git-repo
@@ -260,24 +270,18 @@ jobs:
     trigger: true
   - get: ci-image
   - in_parallel:
-    - task: detect-jdk8-update
+    - task: detect-jdk17-update
       image: ci-image
       file: git-repo/ci/tasks/detect-jdk-updates.yml
       params:
         <<: *github-task-params
-        JDK_VERSION: java8
-    - task: detect-jdk11-update
+        JDK_VERSION: java17
+    - task: detect-jdk18-update
       image: ci-image
       file: git-repo/ci/tasks/detect-jdk-updates.yml
       params:
         <<: *github-task-params
-        JDK_VERSION: java11
-    - task: detect-jdk15-update
-      image: ci-image
-      file: git-repo/ci/tasks/detect-jdk-updates.yml
-      params:
-        <<: *github-task-params
-        JDK_VERSION: java15
+        JDK_VERSION: java18
 - name: detect-ubuntu-image-updates
   plan:
   - get: git-repo
@@ -365,56 +369,38 @@ jobs:
       params:
         path: git-repo
         status: failure
-- name: jdk11-build
+- name: jdk18-build
   serial: true
   public: true
   plan:
-  - get: ci-image-jdk11
-  - get: git-repo
-    trigger: true
-  - put: repo-status-jdk11-build
-    params: { state: "pending", commit: "git-repo" }
-  - do:
-    - task: build-project
-      image: ci-image-jdk11
-      <<: *build-project-task-params
-    on_failure:
-      do:
-      - put: repo-status-jdk11-build
-        params: { state: "failure", commit: "git-repo" }
-      - put: slack-alert
-        params:
-          <<: *slack-fail-params
-  - put: repo-status-jdk11-build
-    params: { state: "success", commit: "git-repo" }
-  - put: slack-alert
-    params:
-      <<: *slack-success-params
-- name: jdk15-build
-  serial: true
-  public: true
-  plan:
-    - get: ci-image-jdk15
+    - get: ci-image-jdk18
     - get: git-repo
       trigger: true
-    - put: repo-status-jdk15-build
+    - put: repo-status-jdk18-build
       params: { state: "pending", commit: "git-repo" }
     - do:
-      - task: build-project
-        image: ci-image-jdk15
-        <<: *build-project-task-params
+        - task: build-project
+          image: ci-image-jdk18
+          privileged: true
+          timeout: ((task-timeout))
+          file: git-repo/ci/tasks/build-project.yml
+          params:
+            BRANCH: ((branch))
+            TOOLCHAIN_JAVA_VERSION: 18
+            <<: *gradle-enterprise-task-params
+            <<: *docker-hub-task-params
       on_failure:
         do:
-          - put: repo-status-jdk15-build
+          - put: repo-status-jdk18-build
             params: { state: "failure", commit: "git-repo" }
           - put: slack-alert
             params:
               <<: *slack-fail-params
-    - put: repo-status-jdk15-build
+    - put: repo-status-jdk18-build
       params: { state: "success", commit: "git-repo" }
     - put: slack-alert
       params:
-       <<: *slack-success-params
+        <<: *slack-success-params
 - name: windows-build
   serial: true
   plan:
@@ -457,6 +443,8 @@ jobs:
     params:
       <<: *artifactory-repo-put-params
       repo: libs-staging-local
+    get_params:
+      threads: 8
   - put: git-repo
     params:
       repository: stage-git-repo
@@ -477,6 +465,8 @@ jobs:
     params:
       <<: *artifactory-repo-put-params
       repo: libs-staging-local
+    get_params:
+      threads: 8
   - put: git-repo
     params:
       repository: stage-git-repo
@@ -497,6 +487,8 @@ jobs:
     params:
       <<: *artifactory-repo-put-params
       repo: libs-staging-local
+    get_params:
+      threads: 8
   - put: git-repo
     params:
       repository: stage-git-repo
@@ -524,6 +516,8 @@ jobs:
       RELEASE_TYPE: M
       GITHUB_USERNAME: ((github-username))
       GITHUB_TOKEN: ((github-ci-release-token))
+    vars:
+      <<: *docker-hub-mirror-vars
   - put: github-pre-release
     params:
       name: generated-changelog/tag
@@ -553,6 +547,8 @@ jobs:
       RELEASE_TYPE: RC
       GITHUB_USERNAME: ((github-username))
       GITHUB_TOKEN: ((github-ci-release-token))
+    vars:
+      <<: *docker-hub-mirror-vars
   - put: github-pre-release
     params:
       name: generated-changelog/tag
@@ -570,6 +566,7 @@ jobs:
     params:
       download_artifacts: true
       save_build_info: true
+      threads: 8
   - task: promote
     image: ci-image
     file: git-repo/ci/tasks/promote.yml
@@ -577,6 +574,23 @@ jobs:
       RELEASE_TYPE: RELEASE
       <<: *artifactory-task-params
       <<: *sonatype-task-params
+- name: publish-gradle-plugin
+  serial: true
+  plan:
+    - get: ci-image
+    - get: git-repo
+    - get: artifactory-repo
+      trigger: true
+      passed: [promote-release]
+      params:
+        download_artifacts: true
+        save_build_info: true
+        threads: 8
+    - task: publish-gradle-plugin
+      image: ci-image
+      file: git-repo/ci/tasks/publish-gradle-plugin.yml
+      params:
+        <<: *gradle-publish-params
 - name: create-github-release
   serial: true
   plan:
@@ -594,6 +608,8 @@ jobs:
       RELEASE_TYPE: RELEASE
       GITHUB_USERNAME: ((github-username))
       GITHUB_TOKEN: ((github-ci-release-token))
+    vars:
+      <<: *docker-hub-mirror-vars
   - put: github-release
     params:
       name: generated-changelog/tag
@@ -636,11 +652,64 @@ jobs:
     - put: homebrew-tap-repo
       params:
         repository: updated-homebrew-tap-repo
+- name: run-system-tests
+  serial: true
+  public: true
+  plan:
+    - get: ci-image
+    - get: git-repo
+    - get: paketo-builder-base-image
+      trigger: true
+    - get: daily
+      trigger: true
+    - do:
+        - task: run-system-tests
+          image: ci-image
+          <<: *run-system-tests-task-params
+      on_failure:
+        do:
+          - put: slack-alert
+            params:
+              <<: *slack-fail-params
+    - put: slack-alert
+      params:
+        <<: *slack-success-params
+- name: jdk18-run-system-tests
+  serial: true
+  public: true
+  plan:
+    - get: ci-image-jdk18
+    - get: git-repo
+    - get: paketo-builder-base-image
+      trigger: true
+    - get: daily
+      trigger: true
+    - do:
+        - task: run-system-tests
+          image: ci-image-jdk18
+          privileged: true
+          timeout: ((task-timeout))
+          file: git-repo/ci/tasks/run-system-tests.yml
+          params:
+            BRANCH: ((branch))
+            TOOLCHAIN_JAVA_VERSION: 18
+            <<: *gradle-enterprise-task-params
+            <<: *docker-hub-task-params
+      on_failure:
+        do:
+          - put: slack-alert
+            params:
+              <<: *slack-fail-params
+    - put: slack-alert
+      params:
+        <<: *slack-success-params
 groups:
 - name: "builds"
-  jobs: ["build", "jdk11-build", "jdk15-build", "windows-build"]
+  jobs: ["build", "jdk18-build", "windows-build"]
 - name: "releases"
-  jobs: ["stage-milestone", "stage-rc", "stage-release", "promote-milestone", "promote-rc", "promote-release", "create-github-release", "publish-to-sdkman", "update-homebrew-tap"]
+  jobs: ["stage-milestone", "stage-rc", "stage-release", "promote-milestone", "promote-rc", "promote-release", "create-github-release", "publish-gradle-plugin", "publish-to-sdkman", "update-homebrew-tap"]
+- name: "system-tests"
+  jobs: ["run-system-tests", "jdk18-run-system-tests"]
 - name: "ci-images"
   jobs: ["build-ci-images", "detect-docker-updates", "detect-jdk-updates", "detect-ubuntu-image-updates"]
 - name: "pull-requests"

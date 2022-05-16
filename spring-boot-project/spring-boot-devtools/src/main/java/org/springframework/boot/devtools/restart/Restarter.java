@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,7 +46,6 @@ import org.springframework.boot.devtools.restart.FailureHandler.Outcome;
 import org.springframework.boot.devtools.restart.classloader.ClassLoaderFiles;
 import org.springframework.boot.devtools.restart.classloader.RestartClassLoader;
 import org.springframework.boot.logging.DeferredLog;
-import org.springframework.boot.system.JavaVersion;
 import org.springframework.cglib.core.ClassNameReader;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.support.GenericApplicationContext;
@@ -276,7 +275,7 @@ public class Restarter {
 		Assert.notNull(this.mainClassName, "Unable to find the main class to restart");
 		URL[] urls = this.urls.toArray(new URL[0]);
 		ClassLoaderFiles updatedFiles = new ClassLoaderFiles(this.classLoaderFiles);
-		ClassLoader classLoader = new RestartClassLoader(this.applicationClassLoader, urls, updatedFiles, this.logger);
+		ClassLoader classLoader = new RestartClassLoader(this.applicationClassLoader, urls, updatedFiles);
 		if (this.logger.isDebugEnabled()) {
 			this.logger.debug("Starting application " + this.mainClassName + " with URLs " + Arrays.asList(urls));
 		}
@@ -333,9 +332,6 @@ public class Restarter {
 		cleanCachedIntrospectionResultsCache();
 		ReflectionUtils.clearCache();
 		clearAnnotationUtilsCache();
-		if (!JavaVersion.getJavaVersion().isEqualOrNewerThan(JavaVersion.NINE)) {
-			clear("com.sun.naming.internal.ResourceManager", "propertiesCache");
-		}
 	}
 
 	private void cleanCachedIntrospectionResultsCache() throws Exception {
@@ -351,17 +347,6 @@ public class Restarter {
 		catch (Throwable ex) {
 			clear(AnnotationUtils.class, "findAnnotationCache");
 			clear(AnnotationUtils.class, "annotatedInterfaceCache");
-		}
-	}
-
-	private void clear(String className, String fieldName) {
-		try {
-			clear(Class.forName(className), fieldName);
-		}
-		catch (Exception ex) {
-			if (this.logger.isDebugEnabled()) {
-				this.logger.debug("Unable to clear field " + className + " " + fieldName, ex);
-			}
 		}
 	}
 

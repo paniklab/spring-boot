@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import groovy.lang.Closure;
 
@@ -62,6 +63,8 @@ class BeanDefinitionLoader {
 
 	// Static final field to facilitate code removal by Graal
 	private static final boolean XML_ENABLED = !SpringProperties.getFlag("spring.xml.ignore");
+
+	private static final Pattern GROOVY_CLOSURE_PATTERN = Pattern.compile(".*\\$_.*closure.*");
 
 	private final Object[] sources;
 
@@ -248,12 +251,12 @@ class BeanDefinitionLoader {
 		if (resource instanceof ClassPathResource) {
 			// A simple package without a '.' may accidentally get loaded as an XML
 			// document if we're not careful. The result of getInputStream() will be
-			// a file list of the package content. We double check here that it's not
+			// a file list of the package content. We double-check here that it's not
 			// actually a package.
 			String path = ((ClassPathResource) resource).getPath();
 			if (path.indexOf('.') == -1) {
 				try {
-					return Package.getPackage(path) == null;
+					return getClass().getClassLoader().getDefinedPackage(path) == null;
 				}
 				catch (Exception ex) {
 					// Ignore
@@ -264,7 +267,7 @@ class BeanDefinitionLoader {
 	}
 
 	private Package findPackage(CharSequence source) {
-		Package pkg = Package.getPackage(source.toString());
+		Package pkg = getClass().getClassLoader().getDefinedPackage(source.toString());
 		if (pkg != null) {
 			return pkg;
 		}
@@ -282,7 +285,7 @@ class BeanDefinitionLoader {
 		catch (Exception ex) {
 			// swallow exception and continue
 		}
-		return Package.getPackage(source.toString());
+		return getClass().getClassLoader().getDefinedPackage(source.toString());
 	}
 
 	/**
@@ -296,7 +299,7 @@ class BeanDefinitionLoader {
 	}
 
 	private boolean isGroovyClosure(Class<?> type) {
-		return type.getName().matches(".*\\$_.*closure.*");
+		return GROOVY_CLOSURE_PATTERN.matcher(type.getName()).matches();
 	}
 
 	private boolean hasNoConstructors(Class<?> type) {

@@ -18,7 +18,6 @@ package org.springframework.boot.autoconfigure.web.servlet;
 
 import java.time.Duration;
 import java.util.LinkedHashMap;
-import java.util.Locale;
 import java.util.Map;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -42,20 +41,9 @@ import org.springframework.validation.DefaultMessageCodesResolver;
 public class WebMvcProperties {
 
 	/**
-	 * Formatting strategy for message codes. For instance, `PREFIX_ERROR_CODE`.
+	 * Formatting strategy for message codes. For instance, 'PREFIX_ERROR_CODE'.
 	 */
 	private DefaultMessageCodesResolver.Format messageCodesResolverFormat;
-
-	/**
-	 * Locale to use. By default, this locale is overridden by the "Accept-Language"
-	 * header.
-	 */
-	private Locale locale;
-
-	/**
-	 * Define how the locale should be resolved.
-	 */
-	private LocaleResolver localeResolver = LocaleResolver.ACCEPT_HEADER;
 
 	private final Format format = new Format();
 
@@ -119,26 +107,6 @@ public class WebMvcProperties {
 
 	public void setMessageCodesResolverFormat(DefaultMessageCodesResolver.Format messageCodesResolverFormat) {
 		this.messageCodesResolverFormat = messageCodesResolverFormat;
-	}
-
-	@Deprecated
-	@DeprecatedConfigurationProperty(replacement = "spring.web.locale")
-	public Locale getLocale() {
-		return this.locale;
-	}
-
-	public void setLocale(Locale locale) {
-		this.locale = locale;
-	}
-
-	@Deprecated
-	@DeprecatedConfigurationProperty(replacement = "spring.web.locale-resolver")
-	public LocaleResolver getLocaleResolver() {
-		return this.localeResolver;
-	}
-
-	public void setLocaleResolver(LocaleResolver localeResolver) {
-		this.localeResolver = localeResolver;
 	}
 
 	@Deprecated
@@ -240,7 +208,6 @@ public class WebMvcProperties {
 		return this.pathmatch;
 	}
 
-	@SuppressWarnings("deprecation")
 	public void checkConfiguration() {
 		if (this.getPathmatch().getMatchingStrategy() == MatchingStrategy.PATH_PATTERN_PARSER) {
 			if (this.getPathmatch().isUseSuffixPattern()) {
@@ -250,10 +217,6 @@ public class WebMvcProperties {
 			if (this.getPathmatch().isUseRegisteredSuffixPattern()) {
 				throw new IncompatibleConfigurationException("spring.mvc.pathmatch.matching-strategy",
 						"spring.mvc.pathmatch.use-registered-suffix-pattern");
-			}
-			if (!this.getServlet().getServletMapping().equals("/")) {
-				throw new IncompatibleConfigurationException("spring.mvc.pathmatch.matching-strategy",
-						"spring.mvc.servlet.path");
 			}
 		}
 	}
@@ -438,7 +401,7 @@ public class WebMvcProperties {
 		/**
 		 * Choice of strategy for matching request paths against registered mappings.
 		 */
-		private MatchingStrategy matchingStrategy = MatchingStrategy.ANT_PATH_MATCHER;
+		private MatchingStrategy matchingStrategy = MatchingStrategy.PATH_PATTERN_PARSER;
 
 		/**
 		 * Whether to use suffix pattern match (".*") when matching patterns to requests.
@@ -493,17 +456,17 @@ public class WebMvcProperties {
 	public static class Format {
 
 		/**
-		 * Date format to use, for example `dd/MM/yyyy`.
+		 * Date format to use, for example 'dd/MM/yyyy'.
 		 */
 		private String date;
 
 		/**
-		 * Time format to use, for example `HH:mm:ss`.
+		 * Time format to use, for example 'HH:mm:ss'.
 		 */
 		private String time;
 
 		/**
-		 * Date-time format to use, for example `yyyy-MM-dd HH:mm:ss`.
+		 * Date-time format to use, for example 'yyyy-MM-dd HH:mm:ss'.
 		 */
 		private String dateTime;
 
@@ -548,27 +511,6 @@ public class WebMvcProperties {
 		 * Use the {@code PathPatternParser} implementation.
 		 */
 		PATH_PATTERN_PARSER
-
-	}
-
-	/**
-	 * Locale resolution options.
-	 * @deprecated since 2.4.0 in favor of
-	 * {@link org.springframework.boot.autoconfigure.web.WebProperties.LocaleResolver}
-	 */
-	@Deprecated
-	public enum LocaleResolver {
-
-		/**
-		 * Always use the configured locale.
-		 */
-		FIXED,
-
-		/**
-		 * Use the "Accept-Language" header or the configured locale if the header is not
-		 * set.
-		 */
-		ACCEPT_HEADER
 
 	}
 

@@ -24,7 +24,7 @@ import java.util.Map;
 import org.gradle.api.GradleException;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Project;
-import org.gradle.testfixtures.ProjectBuilder;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -32,6 +32,8 @@ import org.springframework.boot.buildpack.platform.build.BuildRequest;
 import org.springframework.boot.buildpack.platform.build.BuildpackReference;
 import org.springframework.boot.buildpack.platform.build.PullPolicy;
 import org.springframework.boot.buildpack.platform.docker.type.Binding;
+import org.springframework.boot.buildpack.platform.docker.type.ImageReference;
+import org.springframework.boot.gradle.junit.GradleProjectBuilder;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
@@ -42,26 +44,27 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
  * @author Andy Wilkinson
  * @author Scott Frederick
  * @author Andrey Shlykov
+ * @author Jeroen Meijer
+ * @author Rafael Ceccone
  */
 class BootBuildImageTests {
 
-	@TempDir
-	File temp;
-
 	Project project;
 
-	private final BootBuildImage buildImage;
+	private BootBuildImage buildImage;
 
-	BootBuildImageTests() {
-		File projectDir = new File(this.temp, "project");
+	@BeforeEach
+	void setUp(@TempDir File temp) {
+		File projectDir = new File(temp, "project");
 		projectDir.mkdirs();
-		this.project = ProjectBuilder.builder().withProjectDir(projectDir).withName("build-image-test").build();
+		this.project = GradleProjectBuilder.builder().withProjectDir(projectDir).withName("build-image-test").build();
 		this.project.setDescription("Test project for BootBuildImage");
 		this.buildImage = this.project.getTasks().create("buildImage", BootBuildImage.class);
 	}
 
 	@Test
 	void whenProjectVersionIsUnspecifiedThenItIsIgnoredWhenDerivingImageName() {
+		assertThat(this.buildImage.getImageName()).isEqualTo("docker.io/library/build-image-test");
 		BuildRequest request = this.buildImage.createRequest();
 		assertThat(request.getName().getDomain()).isEqualTo("docker.io");
 		assertThat(request.getName().getName()).isEqualTo("library/build-image-test");
@@ -72,6 +75,7 @@ class BootBuildImageTests {
 	@Test
 	void whenProjectVersionIsSpecifiedThenItIsUsedInTagOfImageName() {
 		this.project.setVersion("1.2.3");
+		assertThat(this.buildImage.getImageName()).isEqualTo("docker.io/library/build-image-test:1.2.3");
 		BuildRequest request = this.buildImage.createRequest();
 		assertThat(request.getName().getDomain()).isEqualTo("docker.io");
 		assertThat(request.getName().getName()).isEqualTo("library/build-image-test");
@@ -83,6 +87,7 @@ class BootBuildImageTests {
 	void whenImageNameIsSpecifiedThenItIsUsedInRequest() {
 		this.project.setVersion("1.2.3");
 		this.buildImage.setImageName("example.com/test/build-image:1.0");
+		assertThat(this.buildImage.getImageName()).isEqualTo("example.com/test/build-image:1.0");
 		BuildRequest request = this.buildImage.createRequest();
 		assertThat(request.getName().getDomain()).isEqualTo("example.com");
 		assertThat(request.getName().getName()).isEqualTo("test/build-image");
@@ -276,6 +281,42 @@ class BootBuildImageTests {
 		this.buildImage.binding("volume-name:container-dest:rw");
 		assertThat(this.buildImage.createRequest().getBindings())
 				.containsExactly(Binding.of("host-src:container-dest:ro"), Binding.of("volume-name:container-dest:rw"));
+	}
+
+	@Test
+	void whenNetworkIsConfiguredThenRequestHasNetwork() {
+		this.buildImage.setNetwork("test");
+		assertThat(this.buildImage.createRequest().getNetwork()).isEqualTo("test");
+	}
+
+	@Test
+	void whenNoTagsAreConfiguredThenRequestHasNoTags() {
+		assertThat(this.buildImage.createRequest().getTags()).isEmpty();
+	}
+
+	@Test
+	void whenTagsAreConfiguredThenRequestHasTags() {
+		this.buildImage.setTags(
+				Arrays.asList("my-app:latest", "example.com/my-app:0.0.1-SNAPSHOT", "example.com/my-app:latest"));
+		assertThat(this.buildImage.createRequest().getTags()).containsExactly(ImageReference.of("my-app:latest"),
+				ImageReference.of("example.com/my-app:0.0.1-SNAPSHOT"), ImageReference.of("example.com/my-app:latest"));
+	}
+
+	@Test
+	void whenEntriesAreAddedToTagsThenRequestHasTags() {
+		this.buildImage
+				.tags(Arrays.asList("my-app:latest", "example.com/my-app:0.0.1-SNAPSHOT", "example.com/my-app:latest"));
+		assertThat(this.buildImage.createRequest().getTags()).containsExactly(ImageReference.of("my-app:latest"),
+				ImageReference.of("example.com/my-app:0.0.1-SNAPSHOT"), ImageReference.of("example.com/my-app:latest"));
+	}
+
+	@Test
+	void whenIndividualEntriesAreAddedToTagsThenRequestHasTags() {
+		this.buildImage.tag("my-app:latest");
+		this.buildImage.tag("example.com/my-app:0.0.1-SNAPSHOT");
+		this.buildImage.tag("example.com/my-app:latest");
+		assertThat(this.buildImage.createRequest().getTags()).containsExactly(ImageReference.of("my-app:latest"),
+				ImageReference.of("example.com/my-app:0.0.1-SNAPSHOT"), ImageReference.of("example.com/my-app:latest"));
 	}
 
 }

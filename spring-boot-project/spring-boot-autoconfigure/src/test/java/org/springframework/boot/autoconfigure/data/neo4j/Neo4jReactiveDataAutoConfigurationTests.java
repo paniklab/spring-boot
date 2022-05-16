@@ -17,6 +17,7 @@
 package org.springframework.boot.autoconfigure.data.neo4j;
 
 import org.junit.jupiter.api.Test;
+import org.neo4j.driver.Driver;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
@@ -92,21 +93,25 @@ class Neo4jReactiveDataAutoConfigurationTests {
 	}
 
 	@Test
+	void shouldProvideReactiveNeo4jClientWithCustomDatabaseSelectionProvider() {
+		this.contextRunner.withUserConfiguration(CustomReactiveDatabaseSelectionProviderConfiguration.class)
+				.run((context) -> {
+					assertThat(context).hasSingleBean(ReactiveNeo4jClient.class);
+					assertThat(context.getBean(ReactiveNeo4jClient.class)).extracting("databaseSelectionProvider")
+							.isSameAs(context.getBean(ReactiveDatabaseSelectionProvider.class));
+				});
+	}
+
+	@Test
 	void shouldReuseExistingReactiveNeo4jClient() {
-		this.contextRunner
-				.withBean("myCustomReactiveClient", ReactiveNeo4jClient.class, () -> mock(ReactiveNeo4jClient.class))
-				.run((context) -> assertThat(context).hasSingleBean(ReactiveNeo4jClient.class)
-						.hasBean("myCustomReactiveClient"));
+		this.contextRunner.withUserConfiguration(ReactiveNeo4jClientConfig.class).run((context) -> assertThat(context)
+				.hasSingleBean(ReactiveNeo4jClient.class).hasBean("myCustomReactiveClient"));
 	}
 
 	@Test
 	void shouldProvideReactiveNeo4jTemplate() {
 		this.contextRunner.withUserConfiguration(CustomReactiveDatabaseSelectionProviderConfiguration.class)
-				.run((context) -> {
-					assertThat(context).hasSingleBean(ReactiveNeo4jTemplate.class);
-					assertThat(context.getBean(ReactiveNeo4jTemplate.class)).extracting("databaseSelectionProvider")
-							.isSameAs(context.getBean(ReactiveDatabaseSelectionProvider.class));
-				});
+				.run((context) -> assertThat(context).hasSingleBean(ReactiveNeo4jTemplate.class));
 	}
 
 	@Test
@@ -151,6 +156,16 @@ class Neo4jReactiveDataAutoConfigurationTests {
 	@Configuration(proxyBeanMethods = false)
 	@TestAutoConfigurationPackage(TestPersistent.class)
 	static class EntityScanConfig {
+
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	static class ReactiveNeo4jClientConfig {
+
+		@Bean
+		ReactiveNeo4jClient myCustomReactiveClient(Driver driver) {
+			return ReactiveNeo4jClient.create(driver);
+		}
 
 	}
 

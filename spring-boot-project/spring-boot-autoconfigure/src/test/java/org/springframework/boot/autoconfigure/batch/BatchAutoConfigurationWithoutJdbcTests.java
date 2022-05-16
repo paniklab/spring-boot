@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,9 @@
 
 package org.springframework.boot.autoconfigure.batch;
 
+import javax.sql.DataSource;
+
+import com.zaxxer.hikari.HikariDataSource;
 import org.junit.jupiter.api.Test;
 
 import org.springframework.batch.core.configuration.annotation.BatchConfigurer;
@@ -28,6 +31,7 @@ import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.transaction.TransactionAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.testsupport.classpath.ClassPathExclusions;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
 
@@ -59,23 +63,28 @@ class BatchAutoConfigurationWithoutJdbcTests {
 	@EnableBatchProcessing
 	static class BatchConfiguration implements BatchConfigurer {
 
+		@Bean
+		DataSource dataSource() {
+			return new HikariDataSource();
+		}
+
 		@Override
-		public JobRepository getJobRepository() throws Exception {
+		public JobRepository getJobRepository() {
 			return mock(JobRepository.class);
 		}
 
 		@Override
-		public PlatformTransactionManager getTransactionManager() throws Exception {
+		public PlatformTransactionManager getTransactionManager() {
 			return mock(PlatformTransactionManager.class);
 		}
 
 		@Override
-		public JobLauncher getJobLauncher() throws Exception {
+		public JobLauncher getJobLauncher() {
 			return mock(JobLauncher.class);
 		}
 
 		@Override
-		public JobExplorer getJobExplorer() throws Exception {
+		public JobExplorer getJobExplorer() {
 			return mock(JobExplorer.class);
 		}
 

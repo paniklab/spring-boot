@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import org.springframework.security.saml2.provider.service.registration.Saml2Mes
  *
  * @author Madhura Bhave
  * @author Phillip Webb
+ * @author Moritz Halbritter
  * @since 2.2.0
  */
 @ConfigurationProperties("spring.security.saml2.relyingparty")
@@ -67,7 +68,7 @@ public class Saml2RelyingPartyProperties {
 		/**
 		 * Remote SAML Identity Provider.
 		 */
-		private final Identityprovider identityprovider = new Identityprovider();
+		private final AssertingParty assertingparty = new AssertingParty();
 
 		public String getEntityId() {
 			return this.entityId;
@@ -89,8 +90,8 @@ public class Saml2RelyingPartyProperties {
 			return this.decryption;
 		}
 
-		public Identityprovider getIdentityprovider() {
-			return this.identityprovider;
+		public AssertingParty getAssertingparty() {
+			return this.assertingparty;
 		}
 
 		public static class Acs {
@@ -224,7 +225,7 @@ public class Saml2RelyingPartyProperties {
 	/**
 	 * Represents a remote Identity Provider.
 	 */
-	public static class Identityprovider {
+	public static class AssertingParty {
 
 		/**
 		 * Unique identifier for the identity provider.
@@ -277,7 +278,7 @@ public class Saml2RelyingPartyProperties {
 			/**
 			 * Whether to redirect or post authentication requests.
 			 */
-			private Saml2MessageBinding binding = Saml2MessageBinding.REDIRECT;
+			private Saml2MessageBinding binding;
 
 			/**
 			 * Whether to sign authentication requests.

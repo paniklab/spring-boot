@@ -17,18 +17,21 @@
 package org.springframework.boot.maven;
 
 import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.jar.JarFile;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import org.springframework.boot.loader.tools.FileUtils;
 import org.springframework.boot.loader.tools.JarModeLibrary;
-import org.springframework.util.FileCopyUtils;
+import org.springframework.util.FileSystemUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -36,6 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Integration tests for the Maven plugin's war support.
  *
  * @author Andy Wilkinson
+ * @author Scott Frederick
  */
 @ExtendWith(MavenBuildExtension.class)
 class WarIntegrationTests extends AbstractArchiveIntegrationTests {
@@ -52,7 +56,7 @@ class WarIntegrationTests extends AbstractArchiveIntegrationTests {
 						.hasEntryWithNameStartingWith("WEB-INF/lib/spring-context")
 						.hasEntryWithNameStartingWith("WEB-INF/lib/spring-core")
 						.hasEntryWithNameStartingWith("WEB-INF/lib/spring-jcl")
-						.hasEntryWithNameStartingWith("WEB-INF/lib-provided/jakarta.servlet-api-4")
+						.hasEntryWithNameStartingWith("WEB-INF/lib-provided/jakarta.servlet-api-5")
 						.hasEntryWithName("org/springframework/boot/loader/WarLauncher.class")
 						.hasEntryWithName("WEB-INF/classes/org/test/SampleApplication.class")
 						.hasEntryWithName("index.html")
@@ -78,16 +82,51 @@ class WarIntegrationTests extends AbstractArchiveIntegrationTests {
 	}
 
 	@TestTemplate
-	void whenWarIsRepackagedWithOutputTimestampTheBuildFailsAsItIsNotSupported(MavenBuild mavenBuild)
+	void whenWarIsRepackagedWithOutputTimestampConfiguredThenWarIsReproducible(MavenBuild mavenBuild)
 			throws InterruptedException {
-		mavenBuild.project("war-output-timestamp").executeAndFail((project) -> {
-			try {
-				String log = FileCopyUtils.copyToString(new FileReader(new File(project, "target/build.log")));
-				assertThat(log).contains("Reproducible repackaging is not supported with war packaging");
+		String firstHash = buildWarWithOutputTimestamp(mavenBuild);
+		Thread.sleep(1500);
+		String secondHash = buildWarWithOutputTimestamp(mavenBuild);
+		assertThat(firstHash).isEqualTo(secondHash);
+	}
+
+	private String buildWarWithOutputTimestamp(MavenBuild mavenBuild) {
+		AtomicReference<String> warHash = new AtomicReference<>();
+		mavenBuild.project("war-output-timestamp").execute((project) -> {
+			File repackaged = new File(project, "target/war-output-timestamp-0.0.1.BUILD-SNAPSHOT.war");
+			assertThat(repackaged).isFile();
+			assertThat(repackaged.lastModified()).isEqualTo(1584352800000L);
+			try (JarFile jar = new JarFile(repackaged)) {
+				List<String> unreproducibleEntries = jar.stream()
+						.filter((entry) -> entry.getLastModifiedTime().toMillis() != 1584352800000L)
+						.map((entry) -> entry.getName() + ": " + entry.getLastModifiedTime())
+						.collect(Collectors.toList());
+				assertThat(unreproducibleEntries).isEmpty();
+				warHash.set(FileUtils.sha1Hash(repackaged));
+				FileSystemUtils.deleteRecursively(project);
 			}
-			catch (Exception ex) {
+			catch (IOException ex) {
 				throw new RuntimeException(ex);
 			}
+		});
+		return warHash.get();
+	}
+
+	@TestTemplate
+	void whenWarIsRepackagedWithOutputTimestampConfiguredThenLibrariesAreSorted(MavenBuild mavenBuild)
+			throws InterruptedException {
+		mavenBuild.project("war-output-timestamp").execute((project) -> {
+			File repackaged = new File(project, "target/war-output-timestamp-0.0.1.BUILD-SNAPSHOT.war");
+			List<String> sortedLibs = Arrays.asList(
+					// these libraries are copied from the original war, sorted when
+					// packaged by Maven
+					"WEB-INF/lib/spring-aop", "WEB-INF/lib/spring-beans", "WEB-INF/lib/spring-context",
+					"WEB-INF/lib/spring-core", "WEB-INF/lib/spring-expression", "WEB-INF/lib/spring-jcl",
+					// these libraries are contributed by Spring Boot repackaging, and
+					// sorted separately
+					"WEB-INF/lib/spring-boot-jarmode-layertools");
+			assertThat(jar(repackaged)).entryNamesInPath("WEB-INF/lib/").zipSatisfy(sortedLibs,
+					(String jarLib, String expectedLib) -> assertThat(jarLib).startsWith(expectedLib));
 		});
 	}
 
@@ -168,6 +207,30 @@ class WarIntegrationTests extends AbstractArchiveIntegrationTests {
 								"WEB-INF/lib/jar-classifier-0.0.1-bravo.jar")
 						.doesNotContain("WEB-INF/lib/jar-classifier-0.0.1-alpha.jar");
 			}
+		});
+	}
+
+	@TestTemplate
+	void repackagedWarContainsClasspathIndex(MavenBuild mavenBuild) {
+		mavenBuild.project("war").execute((project) -> {
+			File repackaged = new File(project, "target/war-0.0.1.BUILD-SNAPSHOT.war");
+			assertThat(jar(repackaged)).manifest(
+					(manifest) -> manifest.hasAttribute("Spring-Boot-Classpath-Index", "WEB-INF/classpath.idx"));
+			assertThat(jar(repackaged)).hasEntryWithName("WEB-INF/classpath.idx");
+			try (JarFile jarFile = new JarFile(repackaged)) {
+				List<String> index = readClasspathIndex(jarFile, "WEB-INF/classpath.idx");
+				assertThat(index).allMatch(
+						(entry) -> entry.startsWith("WEB-INF/lib/") || entry.startsWith("WEB-INF/lib-provided/"));
+			}
+		});
+	}
+
+	@TestTemplate
+	void whenEntryIsExcludedItShouldNotBePresentInTheRepackagedWar(MavenBuild mavenBuild) {
+		mavenBuild.project("war-exclude-entry").execute((project) -> {
+			File war = new File(project, "target/war-exclude-entry-0.0.1.BUILD-SNAPSHOT.war");
+			assertThat(jar(war)).hasEntryWithNameStartingWith("WEB-INF/lib/spring-context")
+					.doesNotHaveEntryWithNameStartingWith("WEB-INF/lib/spring-core");
 		});
 	}
 

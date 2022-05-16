@@ -117,7 +117,7 @@ class LoggingApplicationListenerTests {
 	private CapturedOutput output;
 
 	@BeforeEach
-	void init(CapturedOutput output) throws SecurityException, IOException {
+	void init(CapturedOutput output) throws IOException {
 		this.systemPropertyNames = new HashSet<>(System.getProperties().keySet());
 		this.output = output;
 		this.logFile = new File(this.tempDir.toFile(), "foo.log");
@@ -129,7 +129,7 @@ class LoggingApplicationListenerTests {
 	}
 
 	@AfterEach
-	void clear() throws IOException {
+	void clear() {
 		LoggingSystem loggingSystem = LoggingSystem.get(getClass().getClassLoader());
 		loggingSystem.setLogLevel("ROOT", LogLevel.INFO);
 		loggingSystem.cleanUp();
@@ -415,12 +415,12 @@ class LoggingApplicationListenerTests {
 		multicastEvent(listener, new ApplicationStartingEvent(this.bootstrapContext, new SpringApplication(), NO_ARGS));
 		listener.initialize(this.context.getEnvironment(), this.context.getClassLoader());
 		assertThat(listener.shutdownHook).isNotNull();
-		listener.shutdownHook.start();
+		listener.shutdownHook.run();
 		assertThat(TestShutdownHandlerLoggingSystem.shutdownLatch.await(30, TimeUnit.SECONDS)).isTrue();
 	}
 
 	@Test
-	void shutdownHookRegistrationCanBeDisabled() throws Exception {
+	void shutdownHookRegistrationCanBeDisabled() {
 		TestLoggingApplicationListener listener = new TestLoggingApplicationListener();
 		Object registered = ReflectionTestUtils.getField(listener, TestLoggingApplicationListener.class,
 				"shutdownHookRegistered");
@@ -473,13 +473,6 @@ class LoggingApplicationListenerTests {
 		assertThat(System.getProperty(LoggingSystemProperties.LOG_LEVEL_PATTERN)).isEqualTo("level");
 		assertThat(System.getProperty(LoggingSystemProperties.LOG_PATH)).isEqualTo("path");
 		assertThat(System.getProperty(LoggingSystemProperties.PID_KEY)).isNotNull();
-		assertDeprecated();
-	}
-
-	@SuppressWarnings("deprecation")
-	private void assertDeprecated() {
-		assertThat(System.getProperty(LoggingSystemProperties.ROLLING_FILE_NAME_PATTERN))
-				.isEqualTo("my.log.%d{yyyyMMdd}.%i.gz");
 	}
 
 	@Test
@@ -634,10 +627,10 @@ class LoggingApplicationListenerTests {
 
 	static class TestLoggingApplicationListener extends LoggingApplicationListener {
 
-		private Thread shutdownHook;
+		private Runnable shutdownHook;
 
 		@Override
-		void registerShutdownHook(Thread shutdownHook) {
+		void registerShutdownHook(Runnable shutdownHook) {
 			this.shutdownHook = shutdownHook;
 		}
 

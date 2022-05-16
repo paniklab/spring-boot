@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -74,6 +74,20 @@ class PrefixedConfigurationPropertySourceTests {
 		ConfigurationPropertySource prefixed = source.withPrefix("my");
 		assertThat(prefixed.containsDescendantOf(ConfigurationPropertyName.of("foo")))
 				.isEqualTo(ConfigurationPropertyState.ABSENT);
+	}
+
+	@Test
+	void withPrefixWhenPrefixIsNullReturnsOriginalSource() {
+		ConfigurationPropertySource source = new MockConfigurationPropertySource().nonIterable();
+		ConfigurationPropertySource prefixed = source.withPrefix(null);
+		assertThat(prefixed).isSameAs(source);
+	}
+
+	@Test
+	void withPrefixWhenPrefixIsEmptyReturnsOriginalSource() {
+		ConfigurationPropertySource source = new MockConfigurationPropertySource().nonIterable();
+		ConfigurationPropertySource prefixed = source.withPrefix("");
+		assertThat(prefixed).isSameAs(source);
 	}
 
 	private ConfigurationPropertyName getName(ConfigurationPropertySource source, String name) {
