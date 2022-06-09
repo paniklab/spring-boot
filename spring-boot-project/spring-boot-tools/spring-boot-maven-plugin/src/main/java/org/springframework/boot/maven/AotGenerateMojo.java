@@ -23,11 +23,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import javax.tools.Diagnostic;
 import javax.tools.DiagnosticListener;
@@ -45,7 +44,6 @@ import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.plugins.annotations.ResolutionScope;
 
 import org.springframework.boot.loader.tools.RunProcess;
-import org.springframework.util.FileSystemUtils;
 
 /**
  * Invoke the AOT engine on the application.
@@ -83,20 +81,15 @@ public class AotGenerateMojo extends AbstractRunMojo {
 	protected void run(File workingDirectory, String startClassName, Map<String, String> environmentVariables)
 			throws MojoExecutionException, MojoFailureException {
 		try {
-			deletePreviousAotAssets();
 			generateAotAssets(workingDirectory, startClassName, environmentVariables);
-			compileSourceFiles(getClassPathUrls());
-			copyNativeConfiguration(this.generatedResources.toPath());
+			compileSourceFiles();
+			copyAll(this.generatedResources.toPath().resolve("META-INF/native-image"),
+					this.classesDirectory.toPath().resolve("META-INF/native-image"));
+			copyAll(this.generatedClasses.toPath(), this.classesDirectory.toPath());
 		}
 		catch (Exception ex) {
 			throw new MojoExecutionException(ex.getMessage(), ex);
 		}
-	}
-
-	private void deletePreviousAotAssets() {
-		FileSystemUtils.deleteRecursively(this.generatedSources);
-		FileSystemUtils.deleteRecursively(this.generatedResources);
-		FileSystemUtils.deleteRecursively(this.generatedClasses);
 	}
 
 	private void generateAotAssets(File workingDirectory, String startClassName,
@@ -147,16 +140,17 @@ public class AotGenerateMojo extends AbstractRunMojo {
 		}
 	}
 
-	private void compileSourceFiles(URL[] classpathUrls) throws IOException {
+	private void compileSourceFiles() throws IOException, MojoExecutionException {
 		List<Path> sourceFiles = Files.walk(this.generatedSources.toPath()).filter(Files::isRegularFile).toList();
 		if (sourceFiles.isEmpty()) {
 			return;
 		}
 		JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
 		try (StandardJavaFileManager fm = compiler.getStandardFileManager(null, null, null)) {
-			List<String> options = List.of("-cp",
-					Arrays.stream(classpathUrls).map(URL::toString).collect(Collectors.joining(File.pathSeparator)),
-					"-d", this.classesDirectory.toPath().toAbsolutePath().toString());
+			List<String> options = new ArrayList<>();
+			addClasspath(options);
+			options.add("-d");
+			options.add(this.classesDirectory.toPath().toAbsolutePath().toString());
 			Iterable<? extends JavaFileObject> compilationUnits = fm.getJavaFileObjectsFromPaths(sourceFiles);
 			Errors errors = new Errors();
 			CompilationTask task = compiler.getTask(null, fm, errors, options, null, compilationUnits);
@@ -167,14 +161,13 @@ public class AotGenerateMojo extends AbstractRunMojo {
 		}
 	}
 
-	private void copyNativeConfiguration(Path generatedResources) throws IOException {
-		Path targetDirectory = this.classesDirectory.toPath().resolve("META-INF/native-image");
-		Path sourceDirectory = generatedResources.resolve("META-INF/native-image");
-		List<Path> files = Files.walk(sourceDirectory).filter(Files::isRegularFile).toList();
+	private void copyAll(Path from, Path to) throws IOException {
+		List<Path> files = (Files.exists(from)) ? Files.walk(from).filter(Files::isRegularFile).toList()
+				: Collections.emptyList();
 		for (Path file : files) {
-			String relativeFileName = file.subpath(sourceDirectory.getNameCount(), file.getNameCount()).toString();
-			getLog().debug("Copying '" + relativeFileName + "' to " + targetDirectory);
-			Path target = targetDirectory.resolve(relativeFileName);
+			String relativeFileName = file.subpath(from.getNameCount(), file.getNameCount()).toString();
+			getLog().debug("Copying '" + relativeFileName + "' to " + to);
+			Path target = to.resolve(relativeFileName);
 			Files.createDirectories(target.getParent());
 			Files.copy(file, target, StandardCopyOption.REPLACE_EXISTING);
 		}

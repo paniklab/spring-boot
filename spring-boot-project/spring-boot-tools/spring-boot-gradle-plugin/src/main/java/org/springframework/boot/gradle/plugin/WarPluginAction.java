@@ -91,7 +91,7 @@ class WarPluginAction implements PluginApplicationAction {
 							.convention(resolveMainClassName.flatMap((resolver) -> manifestStartClass.isPresent()
 									? manifestStartClass : resolveMainClassName.get().readMainClassName()));
 				});
-		bootWarProvider.map((bootWar) -> bootWar.getClasspath());
+		bootWarProvider.map(War::getClasspath);
 		return bootWarProvider;
 	}
 
@@ -105,7 +105,6 @@ class WarPluginAction implements PluginApplicationAction {
 				.configure((buildImage) -> buildImage.getArchiveFile().set(bootWar.get().getArchiveFile()));
 	}
 
-	@SuppressWarnings("deprecation")
 	private void configureArtifactPublication(TaskProvider<BootWar> bootWar) {
 		this.singlePublishedArtifact.addWarCandidate(bootWar);
 	}

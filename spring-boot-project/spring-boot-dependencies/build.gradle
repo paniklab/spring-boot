@@ -32,7 +32,10 @@ bom {
 				"artemis-core-client",
 				"artemis-jakarta-client",
 				"artemis-jakarta-server",
+				"artemis-jakarta-service-extensions",
+				"artemis-jdbc-store",
 				"artemis-journal",
+				"artemis-quorum-api",
 				"artemis-selector",
 				"artemis-server",
 				"artemis-service-extensions"
@@ -491,6 +494,9 @@ bom {
 		}
 	}
 	library("Jakarta JMS", "3.0.0") {
+		prohibit("[3.1.0,)") {
+			because "it exceeds our Jakarta EE 9 baseline"
+		}
 		group("jakarta.jms") {
 			modules = [
 				"jakarta.jms-api"
@@ -772,7 +778,7 @@ bom {
 			]
 		}
 	}
-	library("Kafka", "3.1.1") {
+	library("Kafka", "3.2.0") {
 		group("org.apache.kafka") {
 			modules = [
 				"connect",
@@ -1023,13 +1029,6 @@ bom {
 			]
 		}
 	}
-	library("MIMEPull", "1.10.0") {
-		group("org.jvnet.mimepull") {
-			modules = [
-				"mimepull"
-			]
-		}
-	}
 	library("Mockito", "4.5.1") {
 		group("org.mockito") {
 			imports = [
@@ -1187,7 +1186,7 @@ bom {
 			]
 		}
 	}
-	library("REST Assured", "5.0.1") {
+	library("REST Assured", "5.1.0") {
 		group("io.rest-assured") {
 			modules = [
 				"json-path",
@@ -1320,7 +1319,7 @@ bom {
 			]
 		}
 	}
-	library("SendGrid", "4.9.1") {
+	library("SendGrid", "4.9.2") {
 		group("com.sendgrid") {
 			modules = [
 				"sendgrid-java"
@@ -1357,30 +1356,7 @@ bom {
 			]
 		}
 	}
-	library("Solr", "8.11.1") {
-		group("org.apache.solr") {
-			modules = [
-				"solr-analysis-extras",
-				"solr-analytics",
-				"solr-cell",
-				"solr-core",
-				"solr-dataimporthandler",
-				"solr-dataimporthandler-extras",
-				"solr-gcs-repository",
-				"solr-jaegertracer-configurator",
-				"solr-langid",
-				"solr-ltr",
-				"solr-prometheus-exporter",
-				"solr-s3-repository",
-				"solr-solrj" {
-					exclude group: "org.slf4j", module: "jcl-over-slf4j"
-				},
-				"solr-test-framework",
-				"solr-velocity"
-			]
-		}
-	}
-	library("Spring AMQP", "3.0.0-M2") {
+	library("Spring AMQP", "3.0.0-M3") {
 		group("org.springframework.amqp") {
 			modules = [
 				"spring-amqp",
@@ -1391,13 +1367,10 @@ bom {
 			]
 		}
 	}
-	library("Spring Batch", "5.0.0-SNAPSHOT") {
+	library("Spring Batch", "5.0.0-M3") {
 		group("org.springframework.batch") {
-			modules = [
-				"spring-batch-core",
-				"spring-batch-infrastructure",
-				"spring-batch-integration",
-				"spring-batch-test"
+			imports = [
+				"spring-batch-bom"
 			]
 		}
 	}
@@ -1408,7 +1381,7 @@ bom {
 			]
 		}
 	}
-	library("Spring Framework", "6.0.0-M4") {
+	library("Spring Framework", "6.0.0-SNAPSHOT") {
 		group("org.springframework") {
 			imports = [
 				"spring-framework-bom"
@@ -1422,14 +1395,14 @@ bom {
 			]
 		}
 	}
-	library("Spring Integration", "6.0.0-M2") {
+	library("Spring Integration", "6.0.0-M3") {
 		group("org.springframework.integration") {
 			imports = [
 				"spring-integration-bom"
 			]
 		}
 	}
-	library("Spring Kafka", "3.0.0-SNAPSHOT") {
+	library("Spring Kafka", "3.0.0-M4") {
 		group("org.springframework.kafka") {
 			modules = [
 				"spring-kafka",
@@ -1442,14 +1415,13 @@ bom {
 			modules = [
 				"spring-ldap-core",
 				"spring-ldap-core-tiger",
-				"spring-ldap-ldif-batch",
 				"spring-ldap-ldif-core",
 				"spring-ldap-odm",
 				"spring-ldap-test"
 			]
 		}
 	}
-	library("Spring RESTDocs", "3.0.0-SNAPSHOT") {
+	library("Spring RESTDocs", "3.0.0-M3") {
 		group("org.springframework.restdocs") {
 			modules = [
 				"spring-restdocs-asciidoctor",
@@ -1467,14 +1439,14 @@ bom {
 			]
 		}
 	}
-	library("Spring Security", "6.0.0-SNAPSHOT") {
+	library("Spring Security", "6.0.0-M5") {
 		group("org.springframework.security") {
 			imports = [
 				"spring-security-bom"
 			]
 		}
 	}
-	library("Spring Session Bom", "2022.0.0-SNAPSHOT") {
+	library("Spring Session Bom", "2022.0.0-M2") {
 		group("org.springframework.session") {
 			imports = [
 				"spring-session-bom"
@@ -1506,7 +1478,7 @@ bom {
 			]
 		}
 	}
-	library("Thymeleaf", "3.1.0.M1") {
+	library("Thymeleaf", "3.1.0.M2") {
 		group("org.thymeleaf") {
 			modules = [
 				"thymeleaf",

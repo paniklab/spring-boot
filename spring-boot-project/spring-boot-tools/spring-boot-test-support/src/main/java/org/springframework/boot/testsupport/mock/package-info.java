@@ -14,19 +14,7 @@
  * limitations under the License.
  */
 
-package org.springframework.boot.docs.data.nosql.solr.connecting
-
-import org.apache.solr.client.solrj.SolrClient
-import org.apache.solr.client.solrj.response.SolrPingResponse
-import org.springframework.stereotype.Component
-
-@Component
-class MyBean(private val solr: SolrClient) {
-
-	// @fold:on // ...
-	fun someMethod(): SolrPingResponse {
-		return solr.ping("users")
-	}
-	// @fold:off
-
-}
+/**
+ * Mock implementations of commonly used classes.
+ */
+package org.springframework.boot.testsupport.mock;

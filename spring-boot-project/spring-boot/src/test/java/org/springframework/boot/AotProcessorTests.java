@@ -16,6 +16,8 @@
 
 package org.springframework.boot;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.function.Consumer;
 
@@ -39,6 +41,7 @@ class AotProcessorTests {
 	@BeforeEach
 	void setup() {
 		SampleApplication.argsHolder = null;
+		SampleApplication.postRunInvoked = false;
 	}
 
 	@Test
@@ -48,6 +51,7 @@ class AotProcessorTests {
 				directory.resolve("resource"), directory.resolve("class"), "com.example", "example");
 		processor.process();
 		assertThat(SampleApplication.argsHolder).isEqualTo(arguments);
+		assertThat(SampleApplication.postRunInvoked).isFalse();
 		assertThat(directory).satisfies(hasGeneratedAssetsForSampleApplication());
 	}
 
@@ -67,6 +71,7 @@ class AotProcessorTests {
 				directory.resolve("class").toString(), "com.example", "example", "1", "2" };
 		AotProcessor.main(mainArguments);
 		assertThat(SampleApplication.argsHolder).containsExactly("1", "2");
+		assertThat(SampleApplication.postRunInvoked).isFalse();
 		assertThat(directory).satisfies(hasGeneratedAssetsForSampleApplication());
 	}
 
@@ -76,10 +81,39 @@ class AotProcessorTests {
 				.withMessageContaining("Usage:");
 	}
 
+	@Test
+	void processingDeletesExistingOutput(@TempDir Path directory) throws IOException {
+		Path sourceOutput = directory.resolve("source");
+		Path resourceOutput = directory.resolve("resource");
+		Path classOutput = directory.resolve("class");
+		Path existingSourceOutput = createExisting(sourceOutput);
+		Path existingResourceOutput = createExisting(resourceOutput);
+		Path existingClassOutput = createExisting(classOutput);
+		AotProcessor processor = new AotProcessor(SampleApplication.class, new String[0], sourceOutput, resourceOutput,
+				classOutput, "com.example", "example");
+		processor.process();
+		assertThat(existingSourceOutput).doesNotExist();
+		assertThat(existingResourceOutput).doesNotExist();
+		assertThat(existingClassOutput).doesNotExist();
+	}
+
+	private Path createExisting(Path directory) throws IOException {
+		Path existing = directory.resolve("existing");
+		Files.createDirectories(directory);
+		Files.createFile(existing);
+		return existing;
+	}
+
 	private Consumer<Path> hasGeneratedAssetsForSampleApplication() {
 		return (directory) -> {
 			assertThat(directory.resolve(
 					"source/org/springframework/boot/AotProcessorTests_SampleApplication__ApplicationContextInitializer.java"))
+							.exists().isRegularFile();
+			assertThat(directory.resolve(
+					"source/org/springframework/boot/AotProcessorTests_SampleApplication__BeanDefinitions.java"))
+							.exists().isRegularFile();
+			assertThat(directory.resolve(
+					"source/org/springframework/boot/AotProcessorTests_SampleApplication__BeanFactoryRegistrations.java"))
 							.exists().isRegularFile();
 			assertThat(directory.resolve("resource/META-INF/native-image/com.example/example/reflect-config.json"))
 					.exists().isRegularFile();
@@ -100,9 +134,12 @@ class AotProcessorTests {
 
 		public static String[] argsHolder;
 
+		public static boolean postRunInvoked;
+
 		public static void main(String[] args) {
 			argsHolder = args;
 			SpringApplication.run(SampleApplication.class, args);
+			postRunInvoked = true;
 		}
 
 	}
