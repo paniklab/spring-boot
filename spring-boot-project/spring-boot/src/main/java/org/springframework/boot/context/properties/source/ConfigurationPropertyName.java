@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2022 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,9 +28,9 @@ import org.springframework.util.StringUtils;
 
 /**
  * A configuration property name composed of elements separated by dots. User created
- * names may contain the characters "{@code a-z}" "{@code 0-9}") and "{@code -}", they
- * must be lower-case and must start with an alphanumeric character. The "{@code -}" is
- * used purely for formatting, i.e. "{@code foo-bar}" and "{@code foobar}" are considered
+ * names may contain the characters "{@code a-z}" "{@code 0-9}" and "{@code -}", they must
+ * be lower-case and must start with an alphanumeric character. The "{@code -}" is used
+ * purely for formatting, i.e. "{@code foo-bar}" and "{@code foobar}" are considered
  * equivalent.
  * <p>
  * The "{@code [}" and "{@code ]}" characters may be used to indicate an associative
@@ -59,7 +59,7 @@ public final class ConfigurationPropertyName implements Comparable<Configuration
 	 */
 	public static final ConfigurationPropertyName EMPTY = new ConfigurationPropertyName(Elements.EMPTY);
 
-	private Elements elements;
+	private final Elements elements;
 
 	private final CharSequence[] uniformElements;
 
@@ -406,7 +406,7 @@ public final class ConfigurationPropertyName implements Comparable<Configuration
 		int i2 = 0;
 		while (i1 < l1) {
 			if (i2 >= l2) {
-				return false;
+				return remainderIsDashes(e1, i, i1);
 			}
 			char ch1 = e1.charAt(i, i1);
 			char ch2 = e2.charAt(i, i2);
@@ -487,6 +487,21 @@ public final class ConfigurationPropertyName implements Comparable<Configuration
 		return true;
 	}
 
+	private boolean remainderIsDashes(Elements elements, int element, int index) {
+		if (elements.getType(element).isIndexed()) {
+			return false;
+		}
+		int length = elements.getLength(element);
+		do {
+			char c = elements.charAt(element, index++);
+			if (c != '-') {
+				return false;
+			}
+		}
+		while (index < length);
+		return true;
+	}
+
 	@Override
 	public int hashCode() {
 		int hashCode = this.hashCode;
@@ -528,7 +543,7 @@ public final class ConfigurationPropertyName implements Comparable<Configuration
 		StringBuilder result = new StringBuilder(elements * 8);
 		for (int i = 0; i < elements; i++) {
 			boolean indexed = isIndexed(i);
-			if (result.length() > 0 && !indexed) {
+			if (!result.isEmpty() && !indexed) {
 				result.append('.');
 			}
 			if (indexed) {
@@ -600,7 +615,7 @@ public final class ConfigurationPropertyName implements Comparable<Configuration
 			Assert.isTrue(returnNullIfInvalid, "Name must not be null");
 			return null;
 		}
-		if (name.length() == 0) {
+		if (name.isEmpty()) {
 			return Elements.EMPTY;
 		}
 		if (name.charAt(0) == '.' || name.charAt(name.length() - 1) == '.') {
@@ -659,7 +674,7 @@ public final class ConfigurationPropertyName implements Comparable<Configuration
 	static ConfigurationPropertyName adapt(CharSequence name, char separator,
 			Function<CharSequence, CharSequence> elementValueProcessor) {
 		Assert.notNull(name, "Name must not be null");
-		if (name.length() == 0) {
+		if (name.isEmpty()) {
 			return EMPTY;
 		}
 		Elements elements = new ElementsParser(name, separator).parse(elementValueProcessor);

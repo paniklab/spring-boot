@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2022 the original author or authors.
+ * Copyright 2012-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,84 +16,83 @@
 
 package org.springframework.boot.actuate.autoconfigure.wavefront;
 
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.ArrayList;
+import java.util.List;
 
-import com.wavefront.sdk.common.WavefrontSender;
-import org.assertj.core.api.InstanceOfAssertFactories;
+import com.wavefront.sdk.common.application.ApplicationTags;
 import org.junit.jupiter.api.Test;
 
 import org.springframework.boot.autoconfigure.AutoConfigurations;
-import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import static org.assertj.core.api.Assertions.as;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
 
 /**
  * Tests for {@link WavefrontAutoConfiguration}.
  *
- * @author Moritz Halbritter
+ * @author Phillip Webb
  */
 class WavefrontAutoConfigurationTests {
 
-	private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
-			.withConfiguration(AutoConfigurations.of(WavefrontAutoConfiguration.class));
+	ApplicationContextRunner contextRunner = new ApplicationContextRunner()
+		.withConfiguration(AutoConfigurations.of(WavefrontAutoConfiguration.class));
 
 	@Test
-	void shouldNotFailIfWavefrontIsMissing() {
-		this.contextRunner.withClassLoader(new FilteredClassLoader("com.wavefront"))
-				.run(((context) -> assertThat(context).doesNotHaveBean(WavefrontSender.class)));
-	}
-
-	@Test
-	void failsWithoutAnApiTokenWhenPublishingDirectly() {
-		this.contextRunner.run((context) -> assertThat(context).hasFailed());
-	}
-
-	@Test
-	void defaultWavefrontSenderSettingsAreConsistent() {
-		this.contextRunner.withPropertyValues("management.wavefront.api-token=abcde").run((context) -> {
-			WavefrontProperties properties = new WavefrontProperties();
-			WavefrontSender sender = context.getBean(WavefrontSender.class);
-			assertThat(sender)
-					.extracting("metricsBuffer", as(InstanceOfAssertFactories.type(LinkedBlockingQueue.class)))
-					.satisfies((queue) -> assertThat(queue.remainingCapacity() + queue.size())
-							.isEqualTo(properties.getSender().getMaxQueueSize()));
-			assertThat(sender).hasFieldOrPropertyWithValue("batchSize", properties.getSender().getBatchSize());
-			assertThat(sender).hasFieldOrPropertyWithValue("messageSizeBytes",
-					(int) properties.getSender().getMessageSize().toBytes());
+	void wavefrontApplicationTagsWhenHasUserBeanBacksOff() {
+		this.contextRunner.withUserConfiguration(TestApplicationTagsConfiguration.class).run((context) -> {
+			ApplicationTags tags = context.getBean(ApplicationTags.class);
+			assertThat(tags.getApplication()).isEqualTo("test-application");
+			assertThat(tags.getService()).isEqualTo("test-service");
 		});
 	}
 
 	@Test
-	void configureWavefrontSender() {
-		this.contextRunner.withPropertyValues("management.wavefront.api-token=abcde",
-				"management.wavefront.sender.batch-size=50", "management.wavefront.sender.max-queue-size=100",
-				"management.wavefront.sender.message-size=1KB").run((context) -> {
-					WavefrontSender sender = context.getBean(WavefrontSender.class);
-					assertThat(sender).hasFieldOrPropertyWithValue("batchSize", 50);
-					assertThat(sender)
-							.extracting("metricsBuffer", as(InstanceOfAssertFactories.type(LinkedBlockingQueue.class)))
-							.satisfies((queue) -> assertThat(queue.remainingCapacity() + queue.size()).isEqualTo(100));
-					assertThat(sender).hasFieldOrPropertyWithValue("messageSizeBytes", 1024);
-				});
+	void wavefrontApplicationTagsMapsProperties() {
+		List<String> properties = new ArrayList<>();
+		properties.add("management.wavefront.application.name=test-application");
+		properties.add("management.wavefront.application.service-name=test-service");
+		properties.add("management.wavefront.application.cluster-name=test-cluster");
+		properties.add("management.wavefront.application.shard-name=test-shard");
+		properties.add("management.wavefront.application.custom-tags.foo=FOO");
+		properties.add("management.wavefront.application.custom-tags.bar=BAR");
+		this.contextRunner.withPropertyValues(properties.toArray(String[]::new)).run((context) -> {
+			ApplicationTags tags = context.getBean(ApplicationTags.class);
+			assertThat(tags.getApplication()).isEqualTo("test-application");
+			assertThat(tags.getService()).isEqualTo("test-service");
+			assertThat(tags.getCluster()).isEqualTo("test-cluster");
+			assertThat(tags.getShard()).isEqualTo("test-shard");
+			assertThat(tags.getCustomTags()).hasSize(2).containsEntry("foo", "FOO").containsEntry("bar", "BAR");
+		});
 	}
 
 	@Test
-	void allowsWavefrontSenderToBeCustomized() {
-		this.contextRunner.withUserConfiguration(CustomSenderConfiguration.class)
-				.run((context) -> assertThat(context).hasSingleBean(WavefrontSender.class).hasBean("customSender"));
+	void wavefrontApplicationTagsWhenNoPropertiesUsesDefaults() {
+		this.contextRunner.withPropertyValues("spring.application.name=spring-app").run((context) -> {
+			ApplicationTags tags = context.getBean(ApplicationTags.class);
+			assertThat(tags.getApplication()).isEqualTo("unnamed_application");
+			assertThat(tags.getService()).isEqualTo("spring-app");
+			assertThat(tags.getCluster()).isNull();
+			assertThat(tags.getShard()).isNull();
+			assertThat(tags.getCustomTags()).isEmpty();
+		});
+	}
+
+	@Test
+	void wavefrontApplicationTagsWhenHasNoServiceNamePropertyAndNoSpringApplicationNameUsesDefault() {
+		this.contextRunner.run((context) -> {
+			ApplicationTags tags = context.getBean(ApplicationTags.class);
+			assertThat(tags.getService()).isEqualTo("unnamed_service");
+		});
 	}
 
 	@Configuration(proxyBeanMethods = false)
-	static class CustomSenderConfiguration {
+	static class TestApplicationTagsConfiguration {
 
 		@Bean
-		WavefrontSender customSender() {
-			return mock(WavefrontSender.class);
+		ApplicationTags applicationTags() {
+			return new ApplicationTags.Builder("test-application", "test-service").build();
 		}
 
 	}

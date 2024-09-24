@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2022 the original author or authors.
+ * Copyright 2012-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +16,10 @@
 
 package org.springframework.boot.actuate.autoconfigure.wavefront;
 
-import java.time.Duration;
-
 import com.wavefront.sdk.common.WavefrontSender;
-import com.wavefront.sdk.common.clients.WavefrontClient.Builder;
+import com.wavefront.sdk.common.application.ApplicationTags;
 
-import org.springframework.boot.actuate.autoconfigure.metrics.export.wavefront.WavefrontMetricsExportAutoConfiguration;
-import org.springframework.boot.actuate.autoconfigure.tracing.wavefront.WavefrontTracingAutoConfiguration;
+import org.springframework.boot.actuate.autoconfigure.wavefront.WavefrontProperties.Application;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -30,31 +27,34 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.context.properties.PropertyMapper;
 import org.springframework.context.annotation.Bean;
-import org.springframework.util.unit.DataSize;
+import org.springframework.core.env.Environment;
+import org.springframework.util.StringUtils;
 
 /**
  * {@link EnableAutoConfiguration Auto-configuration} for Wavefront common infrastructure.
- * Metrics are auto-configured in {@link WavefrontMetricsExportAutoConfiguration}, and
- * tracing is auto-configured in {@link WavefrontTracingAutoConfiguration}.
  *
  * @author Moritz Halbritter
+ * @author Glenn Oppegard
+ * @author Phillip Webb
  * @since 3.0.0
  */
 @AutoConfiguration
-@ConditionalOnClass(WavefrontSender.class)
+@ConditionalOnClass({ ApplicationTags.class, WavefrontSender.class })
 @EnableConfigurationProperties(WavefrontProperties.class)
 public class WavefrontAutoConfiguration {
 
 	@Bean
 	@ConditionalOnMissingBean
-	public WavefrontSender wavefrontSender(WavefrontProperties properties) {
-		Builder builder = new Builder(properties.getEffectiveUri().toString(), properties.getApiTokenOrThrow());
-		PropertyMapper mapper = PropertyMapper.get().alwaysApplyingWhenNonNull();
-		WavefrontProperties.Sender sender = properties.getSender();
-		mapper.from(sender.getMaxQueueSize()).to(builder::maxQueueSize);
-		mapper.from(sender.getFlushInterval()).asInt(Duration::getSeconds).to(builder::flushIntervalSeconds);
-		mapper.from(sender.getMessageSize()).asInt(DataSize::toBytes).to(builder::messageSizeBytes);
-		mapper.from(sender.getBatchSize()).to(builder::batchSize);
+	public ApplicationTags wavefrontApplicationTags(Environment environment, WavefrontProperties properties) {
+		Application application = properties.getApplication();
+		String serviceName = application.getServiceName();
+		serviceName = (StringUtils.hasText(serviceName)) ? serviceName
+				: environment.getProperty("spring.application.name", "unnamed_service");
+		PropertyMapper map = PropertyMapper.get().alwaysApplyingWhenNonNull();
+		ApplicationTags.Builder builder = new ApplicationTags.Builder(application.getName(), serviceName);
+		map.from(application::getClusterName).to(builder::cluster);
+		map.from(application::getShardName).to(builder::shard);
+		map.from(application::getCustomTags).to(builder::customTags);
 		return builder.build();
 	}
 

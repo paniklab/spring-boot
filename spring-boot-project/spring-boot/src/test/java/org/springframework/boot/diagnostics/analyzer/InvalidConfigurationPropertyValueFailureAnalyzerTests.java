@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2022 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,7 +45,8 @@ class InvalidConfigurationPropertyValueFailureAnalyzerTests {
 		InvalidConfigurationPropertyValueException failure = new InvalidConfigurationPropertyValueException(
 				"test.property", "invalid", "This is not valid.");
 		FailureAnalysis analysis = new InvalidConfigurationPropertyValueFailureAnalyzer(null).analyze(failure);
-		assertThat(analysis).isNull();
+		assertThat(analysis.getDescription())
+			.contains("Invalid value 'invalid' for configuration property 'test.property'.");
 	}
 
 	@Test
@@ -58,7 +59,8 @@ class InvalidConfigurationPropertyValueFailureAnalyzerTests {
 		assertCommonParts(failure, analysis);
 		assertThat(analysis.getAction()).contains("Review the value of the property with the provided reason.");
 		assertThat(analysis.getDescription()).contains("Validation failed for the following reason")
-				.contains("This is not valid.").doesNotContain("Additionally, this property is also set");
+			.contains("This is not valid.")
+			.doesNotContain("Additionally, this property is also set");
 	}
 
 	@Test
@@ -70,7 +72,7 @@ class InvalidConfigurationPropertyValueFailureAnalyzerTests {
 		FailureAnalysis analysis = performAnalysis(failure);
 		assertThat(analysis.getAction()).contains("Review the value of the property.");
 		assertThat(analysis.getDescription()).contains("No reason was provided.")
-				.doesNotContain("Additionally, this property is also set");
+			.doesNotContain("Additionally, this property is also set");
 	}
 
 	@Test
@@ -88,21 +90,24 @@ class InvalidConfigurationPropertyValueFailureAnalyzerTests {
 		assertCommonParts(failure, analysis);
 		assertThat(analysis.getAction()).contains("Review the value of the property with the provided reason.");
 		assertThat(analysis.getDescription())
-				.contains("Additionally, this property is also set in the following property sources:")
-				.contains("In 'additional' with the value 'valid'")
-				.contains("In 'another' with the value 'test' (originating from 'TestOrigin test.property')");
+			.contains("Additionally, this property is also set in the following property sources:")
+			.contains("In 'additional' with the value 'valid'")
+			.contains("In 'another' with the value 'test' (originating from 'TestOrigin test.property')");
 	}
 
 	@Test
 	void analysisWithUnknownKey() {
 		InvalidConfigurationPropertyValueException failure = new InvalidConfigurationPropertyValueException(
 				"test.key.not.defined", "invalid", "This is not valid.");
-		assertThat(performAnalysis(failure)).isNull();
+		FailureAnalysis analysis = performAnalysis(failure);
+		assertThat(analysis.getDescription())
+			.contains("Invalid value 'invalid' for configuration property 'test.key.not.defined'.");
 	}
 
 	private void assertCommonParts(InvalidConfigurationPropertyValueException failure, FailureAnalysis analysis) {
-		assertThat(analysis.getDescription()).contains("test.property").contains("invalid")
-				.contains("TestOrigin test.property");
+		assertThat(analysis.getDescription()).contains("test.property")
+			.contains("invalid")
+			.contains("TestOrigin test.property");
 		assertThat(analysis.getCause()).isSameAs(failure);
 	}
 

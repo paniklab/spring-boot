@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2022 the original author or authors.
+ * Copyright 2012-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ public class EnvironmentPostProcessorApplicationListener implements SmartApplica
 
 	/**
 	 * Create a new {@link EnvironmentPostProcessorApplicationListener} with
-	 * {@link EnvironmentPostProcessor} classes loaded via {@code spring.factories}.
+	 * {@link EnvironmentPostProcessor} classes loaded through {@code spring.factories}.
 	 */
 	public EnvironmentPostProcessorApplicationListener() {
 		this(EnvironmentPostProcessorsFactory::fromSpringFactories);
@@ -90,8 +90,8 @@ public class EnvironmentPostProcessorApplicationListener implements SmartApplica
 
 	@Override
 	public void onApplicationEvent(ApplicationEvent event) {
-		if (event instanceof ApplicationEnvironmentPreparedEvent) {
-			onApplicationEnvironmentPreparedEvent((ApplicationEnvironmentPreparedEvent) event);
+		if (event instanceof ApplicationEnvironmentPreparedEvent environmentPreparedEvent) {
+			onApplicationEnvironmentPreparedEvent(environmentPreparedEvent);
 		}
 		if (event instanceof ApplicationPreparedEvent) {
 			onApplicationPreparedEvent();

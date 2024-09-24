@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,8 @@ import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.publish.PublishingExtension;
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin;
 
+import org.springframework.util.FileSystemUtils;
+
 /**
  * A plugin to make a project's {@code deployment} publication available as a Maven
  * repository. The repository can be consumed by depending upon the project using the
@@ -61,36 +63,45 @@ public class MavenRepositoryPlugin implements Plugin<Project> {
 			mavenRepository.setName("project");
 			mavenRepository.setUrl(repositoryLocation.toURI());
 		});
-		project.getTasks().matching((task) -> task.getName().equals(PUBLISH_TO_PROJECT_REPOSITORY_TASK_NAME))
-				.all((task) -> setUpProjectRepository(project, task, repositoryLocation));
-		project.getTasks().matching((task) -> task.getName().equals("publishPluginMavenPublicationToProjectRepository"))
-				.all((task) -> setUpProjectRepository(project, task, repositoryLocation));
+		project.getTasks()
+			.matching((task) -> task.getName().equals(PUBLISH_TO_PROJECT_REPOSITORY_TASK_NAME))
+			.all((task) -> setUpProjectRepository(project, task, repositoryLocation));
+		project.getTasks()
+			.matching((task) -> task.getName().equals("publishPluginMavenPublicationToProjectRepository"))
+			.all((task) -> setUpProjectRepository(project, task, repositoryLocation));
 	}
 
 	private void setUpProjectRepository(Project project, Task publishTask, File repositoryLocation) {
 		publishTask.doFirst(new CleanAction(repositoryLocation));
 		Configuration projectRepository = project.getConfigurations().create(MAVEN_REPOSITORY_CONFIGURATION_NAME);
-		project.getArtifacts().add(projectRepository.getName(), repositoryLocation,
-				(artifact) -> artifact.builtBy(publishTask));
+		project.getArtifacts()
+			.add(projectRepository.getName(), repositoryLocation, (artifact) -> artifact.builtBy(publishTask));
 		DependencySet target = projectRepository.getDependencies();
-		project.getPlugins().withType(JavaPlugin.class).all((javaPlugin) -> addMavenRepositoryDependencies(project,
-				JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME, target));
-		project.getPlugins().withType(JavaLibraryPlugin.class)
-				.all((javaLibraryPlugin) -> addMavenRepositoryDependencies(project, JavaPlugin.API_CONFIGURATION_NAME,
-						target));
-		project.getPlugins().withType(JavaPlatformPlugin.class)
-				.all((javaPlugin) -> addMavenRepositoryDependencies(project, JavaPlatformPlugin.API_CONFIGURATION_NAME,
-						target));
+		project.getPlugins()
+			.withType(JavaPlugin.class)
+			.all((javaPlugin) -> addMavenRepositoryDependencies(project, JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME,
+					target));
+		project.getPlugins()
+			.withType(JavaLibraryPlugin.class)
+			.all((javaLibraryPlugin) -> addMavenRepositoryDependencies(project, JavaPlugin.API_CONFIGURATION_NAME,
+					target));
+		project.getPlugins()
+			.withType(JavaPlatformPlugin.class)
+			.all((javaPlugin) -> addMavenRepositoryDependencies(project, JavaPlatformPlugin.API_CONFIGURATION_NAME,
+					target));
 	}
 
 	private void addMavenRepositoryDependencies(Project project, String sourceConfigurationName, DependencySet target) {
-		project.getConfigurations().getByName(sourceConfigurationName).getDependencies()
-				.withType(ProjectDependency.class).all((dependency) -> {
-					Map<String, String> dependencyDescriptor = new HashMap<>();
-					dependencyDescriptor.put("path", dependency.getDependencyProject().getPath());
-					dependencyDescriptor.put("configuration", MAVEN_REPOSITORY_CONFIGURATION_NAME);
-					target.add(project.getDependencies().project(dependencyDescriptor));
-				});
+		project.getConfigurations()
+			.getByName(sourceConfigurationName)
+			.getDependencies()
+			.withType(ProjectDependency.class)
+			.all((dependency) -> {
+				Map<String, String> dependencyDescriptor = new HashMap<>();
+				dependencyDescriptor.put("path", dependency.getDependencyProject().getPath());
+				dependencyDescriptor.put("configuration", MAVEN_REPOSITORY_CONFIGURATION_NAME);
+				target.add(project.getDependencies().project(dependencyDescriptor));
+			});
 	}
 
 	private static final class CleanAction implements Action<Task> {
@@ -103,7 +114,7 @@ public class MavenRepositoryPlugin implements Plugin<Project> {
 
 		@Override
 		public void execute(Task task) {
-			task.getProject().delete(this.location);
+			FileSystemUtils.deleteRecursively(this.location);
 		}
 
 	}

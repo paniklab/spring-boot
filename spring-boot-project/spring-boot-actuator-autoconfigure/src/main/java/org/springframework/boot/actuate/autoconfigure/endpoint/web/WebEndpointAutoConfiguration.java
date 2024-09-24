@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2022 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ package org.springframework.boot.actuate.autoconfigure.endpoint.web;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.actuate.autoconfigure.endpoint.EndpointAutoConfiguration;
@@ -29,17 +28,12 @@ import org.springframework.boot.actuate.endpoint.EndpointsSupplier;
 import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
 import org.springframework.boot.actuate.endpoint.invoke.OperationInvokerAdvisor;
 import org.springframework.boot.actuate.endpoint.invoke.ParameterValueMapper;
+import org.springframework.boot.actuate.endpoint.web.AdditionalPathsMapper;
 import org.springframework.boot.actuate.endpoint.web.EndpointMediaTypes;
-import org.springframework.boot.actuate.endpoint.web.ExposableServletEndpoint;
 import org.springframework.boot.actuate.endpoint.web.ExposableWebEndpoint;
 import org.springframework.boot.actuate.endpoint.web.PathMappedEndpoints;
 import org.springframework.boot.actuate.endpoint.web.PathMapper;
 import org.springframework.boot.actuate.endpoint.web.WebEndpointsSupplier;
-import org.springframework.boot.actuate.endpoint.web.annotation.ControllerEndpointDiscoverer;
-import org.springframework.boot.actuate.endpoint.web.annotation.ControllerEndpointsSupplier;
-import org.springframework.boot.actuate.endpoint.web.annotation.ExposableControllerEndpoint;
-import org.springframework.boot.actuate.endpoint.web.annotation.ServletEndpointDiscoverer;
-import org.springframework.boot.actuate.endpoint.web.annotation.ServletEndpointsSupplier;
 import org.springframework.boot.actuate.endpoint.web.annotation.WebEndpointDiscoverer;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -88,20 +82,22 @@ public class WebEndpointAutoConfiguration {
 	@ConditionalOnMissingBean(WebEndpointsSupplier.class)
 	public WebEndpointDiscoverer webEndpointDiscoverer(ParameterValueMapper parameterValueMapper,
 			EndpointMediaTypes endpointMediaTypes, ObjectProvider<PathMapper> endpointPathMappers,
+			ObjectProvider<AdditionalPathsMapper> additionalPathsMappers,
 			ObjectProvider<OperationInvokerAdvisor> invokerAdvisors,
 			ObjectProvider<EndpointFilter<ExposableWebEndpoint>> filters) {
 		return new WebEndpointDiscoverer(this.applicationContext, parameterValueMapper, endpointMediaTypes,
-				endpointPathMappers.orderedStream().collect(Collectors.toList()),
-				invokerAdvisors.orderedStream().collect(Collectors.toList()),
-				filters.orderedStream().collect(Collectors.toList()));
+				endpointPathMappers.orderedStream().toList(), additionalPathsMappers.orderedStream().toList(),
+				invokerAdvisors.orderedStream().toList(), filters.orderedStream().toList());
 	}
 
 	@Bean
-	@ConditionalOnMissingBean(ControllerEndpointsSupplier.class)
-	public ControllerEndpointDiscoverer controllerEndpointDiscoverer(ObjectProvider<PathMapper> endpointPathMappers,
-			ObjectProvider<Collection<EndpointFilter<ExposableControllerEndpoint>>> filters) {
-		return new ControllerEndpointDiscoverer(this.applicationContext,
-				endpointPathMappers.orderedStream().collect(Collectors.toList()),
+	@ConditionalOnMissingBean(org.springframework.boot.actuate.endpoint.web.annotation.ControllerEndpointsSupplier.class)
+	@SuppressWarnings({ "deprecation", "removal" })
+	public org.springframework.boot.actuate.endpoint.web.annotation.ControllerEndpointDiscoverer controllerEndpointDiscoverer(
+			ObjectProvider<PathMapper> endpointPathMappers,
+			ObjectProvider<Collection<EndpointFilter<org.springframework.boot.actuate.endpoint.web.annotation.ExposableControllerEndpoint>>> filters) {
+		return new org.springframework.boot.actuate.endpoint.web.annotation.ControllerEndpointDiscoverer(
+				this.applicationContext, endpointPathMappers.orderedStream().toList(),
 				filters.getIfAvailable(Collections::emptyList));
 	}
 
@@ -119,10 +115,12 @@ public class WebEndpointAutoConfiguration {
 	}
 
 	@Bean
-	public IncludeExcludeEndpointFilter<ExposableControllerEndpoint> controllerExposeExcludePropertyEndpointFilter() {
+	@SuppressWarnings("removal")
+	public IncludeExcludeEndpointFilter<org.springframework.boot.actuate.endpoint.web.annotation.ExposableControllerEndpoint> controllerExposeExcludePropertyEndpointFilter() {
 		WebEndpointProperties.Exposure exposure = this.properties.getExposure();
-		return new IncludeExcludeEndpointFilter<>(ExposableControllerEndpoint.class, exposure.getInclude(),
-				exposure.getExclude());
+		return new IncludeExcludeEndpointFilter<>(
+				org.springframework.boot.actuate.endpoint.web.annotation.ExposableControllerEndpoint.class,
+				exposure.getInclude(), exposure.getExclude());
 	}
 
 	@Configuration(proxyBeanMethods = false)
@@ -130,13 +128,13 @@ public class WebEndpointAutoConfiguration {
 	static class WebEndpointServletConfiguration {
 
 		@Bean
-		@ConditionalOnMissingBean(ServletEndpointsSupplier.class)
-		ServletEndpointDiscoverer servletEndpointDiscoverer(ApplicationContext applicationContext,
-				ObjectProvider<PathMapper> endpointPathMappers,
-				ObjectProvider<EndpointFilter<ExposableServletEndpoint>> filters) {
-			return new ServletEndpointDiscoverer(applicationContext,
-					endpointPathMappers.orderedStream().collect(Collectors.toList()),
-					filters.orderedStream().collect(Collectors.toList()));
+		@SuppressWarnings({ "deprecation", "removal" })
+		@ConditionalOnMissingBean(org.springframework.boot.actuate.endpoint.web.annotation.ServletEndpointsSupplier.class)
+		org.springframework.boot.actuate.endpoint.web.annotation.ServletEndpointDiscoverer servletEndpointDiscoverer(
+				ApplicationContext applicationContext, ObjectProvider<PathMapper> endpointPathMappers,
+				ObjectProvider<EndpointFilter<org.springframework.boot.actuate.endpoint.web.ExposableServletEndpoint>> filters) {
+			return new org.springframework.boot.actuate.endpoint.web.annotation.ServletEndpointDiscoverer(
+					applicationContext, endpointPathMappers.orderedStream().toList(), filters.orderedStream().toList());
 		}
 
 	}

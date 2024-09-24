@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2022 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,155 +16,38 @@
 
 package org.springframework.boot.actuate.autoconfigure.tracing.zipkin;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.util.List;
-import java.util.zip.GZIPOutputStream;
+import java.net.URI;
 
-import zipkin2.Call;
-import zipkin2.Callback;
-import zipkin2.CheckResult;
-import zipkin2.codec.Encoding;
-import zipkin2.reporter.BytesMessageEncoder;
-import zipkin2.reporter.ClosedSenderException;
-import zipkin2.reporter.Sender;
+import zipkin2.reporter.Encoding;
+import zipkin2.reporter.HttpEndpointSupplier.Factory;
 
 import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
-import org.springframework.util.unit.DataSize;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
 /**
- * A Zipkin {@link Sender} which uses {@link RestTemplate} for HTTP communication.
- * Supports automatic compression with gzip.
+ * An {@link HttpSender} which uses {@link RestTemplate} for HTTP communication.
  *
  * @author Moritz Halbritter
+ * @author Stefan Bratanov
+ * @deprecated since 3.3.0 for removal in 3.5.0 in favor of {@link ZipkinHttpClientSender}
  */
-class ZipkinRestTemplateSender extends Sender {
-
-	private static final DataSize MESSAGE_MAX_BYTES = DataSize.ofKilobytes(512);
-
-	private final String endpoint;
+@Deprecated(since = "3.3.0", forRemoval = true)
+class ZipkinRestTemplateSender extends HttpSender {
 
 	private final RestTemplate restTemplate;
 
-	private volatile boolean closed;
-
-	ZipkinRestTemplateSender(String endpoint, RestTemplate restTemplate) {
-		this.endpoint = endpoint;
+	ZipkinRestTemplateSender(Encoding encoding, Factory endpointSupplierFactory, String endpoint,
+			RestTemplate restTemplate) {
+		super(encoding, endpointSupplierFactory, endpoint);
 		this.restTemplate = restTemplate;
 	}
 
 	@Override
-	public Encoding encoding() {
-		return Encoding.JSON;
-	}
-
-	@Override
-	public int messageMaxBytes() {
-		return (int) MESSAGE_MAX_BYTES.toBytes();
-	}
-
-	@Override
-	public int messageSizeInBytes(List<byte[]> encodedSpans) {
-		return encoding().listSizeInBytes(encodedSpans);
-	}
-
-	@Override
-	public int messageSizeInBytes(int encodedSizeInBytes) {
-		return encoding().listSizeInBytes(encodedSizeInBytes);
-	}
-
-	@Override
-	public Call<Void> sendSpans(List<byte[]> encodedSpans) {
-		if (this.closed) {
-			throw new ClosedSenderException();
-		}
-		return new HttpCall(this.endpoint, BytesMessageEncoder.JSON.encode(encodedSpans), this.restTemplate);
-	}
-
-	@Override
-	public CheckResult check() {
-		try {
-			sendSpans(List.of()).execute();
-			return CheckResult.OK;
-		}
-		catch (IOException | RuntimeException ex) {
-			return CheckResult.failed(ex);
-		}
-	}
-
-	@Override
-	public void close() throws IOException {
-		this.closed = true;
-	}
-
-	private static class HttpCall extends Call.Base<Void> {
-
-		/**
-		 * Only use gzip compression on data which is bigger than this in bytes.
-		 */
-		private static final DataSize COMPRESSION_THRESHOLD = DataSize.ofKilobytes(1);
-
-		private final String endpoint;
-
-		private final byte[] body;
-
-		private final RestTemplate restTemplate;
-
-		HttpCall(String endpoint, byte[] body, RestTemplate restTemplate) {
-			this.endpoint = endpoint;
-			this.body = body;
-			this.restTemplate = restTemplate;
-		}
-
-		@Override
-		protected Void doExecute() throws IOException {
-			HttpHeaders headers = new HttpHeaders();
-			headers.set("b3", "0");
-			headers.set("Content-Type", "application/json");
-			byte[] body;
-			if (needsCompression(this.body)) {
-				headers.set("Content-Encoding", "gzip");
-				body = compress(this.body);
-			}
-			else {
-				body = this.body;
-			}
-			HttpEntity<byte[]> request = new HttpEntity<>(body, headers);
-			this.restTemplate.exchange(this.endpoint, HttpMethod.POST, request, Void.class);
-			return null;
-		}
-
-		private boolean needsCompression(byte[] body) {
-			return body.length > COMPRESSION_THRESHOLD.toBytes();
-		}
-
-		@Override
-		protected void doEnqueue(Callback<Void> callback) {
-			try {
-				doExecute();
-				callback.onSuccess(null);
-			}
-			catch (IOException | RuntimeException ex) {
-				callback.onError(ex);
-			}
-		}
-
-		@Override
-		public Call<Void> clone() {
-			return new HttpCall(this.endpoint, this.body, this.restTemplate);
-		}
-
-		private byte[] compress(byte[] input) throws IOException {
-			ByteArrayOutputStream result = new ByteArrayOutputStream();
-			try (GZIPOutputStream gzip = new GZIPOutputStream(result)) {
-				gzip.write(input);
-			}
-			return result.toByteArray();
-		}
-
+	void postSpans(URI endpoint, MultiValueMap<String, String> headers, byte[] body) {
+		HttpEntity<byte[]> request = new HttpEntity<>(body, headers);
+		this.restTemplate.exchange(endpoint, HttpMethod.POST, request, Void.class);
 	}
 
 }
